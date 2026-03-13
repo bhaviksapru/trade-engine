@@ -1,0 +1,159 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Trade Engine — Cognito user pool with Google federation
+
+Parameters:
+  StackName:
+    Type: String
+  AllowedGoogleEmail:
+    Type: String
+    Description: Only this Google account can log into the dashboard
+  GoogleOAuthClientId:
+    Type: String
+  GoogleOAuthClientSecret:
+    Type: String
+    NoEcho: true
+
+Resources:
+
+# ── Pre-Token Lambda (email allowlist check) ──────────────────────────────────
+
+  PreTokenRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  PreTokenFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub trade-engine-pre-token-${StackName}
+      Runtime: python3.11
+      Handler: index.handler
+      Role: !GetAtt PreTokenRole.Arn
+      Timeout: 5
+      Environment:
+        Variables:
+          ALLOWED_EMAIL: !Ref AllowedGoogleEmail
+      Code:
+        ZipFile: |
+          import os, logging
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          def handler(event, context):
+            """
+            Cognito pre-token trigger — allows only the configured Google email.
+            Called before every token issuance (login + refresh).
+            """
+            allowed = os.environ.get('ALLOWED_EMAIL', '').strip().lower()
+            attrs   = event.get('request', {}).get('userAttributes', {})
+
+            # Cognito federated identities may put email in different claims
+            email = (
+              attrs.get('email') or
+              attrs.get('cognito:username') or
+              ''
+            ).strip().lower()
+
+            if email != allowed:
+              logger.warning(f"Access denied for: {email}")
+              raise Exception(f"Access denied: {email} is not an authorised user")
+
+            logger.info(f"Access granted: {email}")
+            return event
+
+  PreTokenPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PreTokenFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+
+# ── Cognito User Pool ─────────────────────────────────────────────────────────
+
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub trade-engine-${StackName}
+      UsernameConfiguration:
+        CaseSensitive: false
+      AutoVerifiedAttributes: [email]
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+      LambdaConfig:
+        PreTokenGeneration: !GetAtt PreTokenFunction.Arn
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+
+  # Google as Identity Provider
+  GoogleIdP:
+    Type: AWS::Cognito::UserPoolIdentityProvider
+    Properties:
+      UserPoolId: !Ref UserPool
+      ProviderName: Google
+      ProviderType: Google
+      ProviderDetails:
+        client_id: !Ref GoogleOAuthClientId
+        client_secret: !Ref GoogleOAuthClientSecret
+        authorize_scopes: email openid profile
+      AttributeMapping:
+        email: email
+        name: name
+
+# ── Cognito App Client ────────────────────────────────────────────────────────
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: GoogleIdP
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub trade-engine-dashboard-${StackName}
+      GenerateSecret: false
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [email, openid, profile]
+      AllowedOAuthFlowsUserPoolClient: true
+      SupportedIdentityProviders:
+        - Google
+      ExplicitAuthFlows:
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+      # Callback and logout URLs are updated post-deploy once CloudFront URL is known
+      # Set placeholders here; update manually or via a Custom Resource after FrontendStack deploys
+      CallbackURLs:
+        - https://localhost/callback   # ✏️ UPDATE after deploy: use dashboard_url
+      LogoutURLs:
+        - https://localhost/           # ✏️ UPDATE after deploy: use dashboard_url
+
+# ── Cognito Domain ────────────────────────────────────────────────────────────
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub trade-engine-${StackName}-${AWS::AccountId}
+
+Outputs:
+  UserPoolId:
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+  UserPoolArn:
+    Value: !GetAtt UserPool.Arn
+  HostedUiUrl:
+    Value: !Sub "https://trade-engine-${StackName}-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com/login"
+  CallbackUrl:
+    Value: !Sub "https://trade-engine-${StackName}-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com/oauth2/idpresponse"
+  CognitoDomain:
+    Value: !Sub "https://trade-engine-${StackName}-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com"

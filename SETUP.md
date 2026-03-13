@@ -1,6 +1,7 @@
-# SETUP.md — Complete Installation Guide
+# SETUP.md — Complete Installation Guide (AWS SAM)
 
-This guide walks through every step from a fresh AWS account to a running trading system. Follow in order.
+This guide walks through every step from a fresh AWS account to a running trading system.
+Infrastructure is managed entirely with **AWS SAM** (no Terraform required).
 
 ---
 
@@ -8,12 +9,12 @@ This guide walks through every step from a fresh AWS account to a running tradin
 
 ```
 □ AWS account with billing enabled
-□ AWS CLI installed locally  (brew install awscli  or  https://aws.amazon.com/cli)
-□ Terraform >= 1.5 installed (brew install terraform or https://terraform.io)
-□ Docker installed locally   (https://docker.com)
-□ NinjaTrader 8 installed on your desktop (free tier is fine)
-□ IBKR account (paper trading account works for testing)
-□ Google account (for dashboard login)
+□ AWS CLI installed and configured  (https://aws.amazon.com/cli)
+□ AWS SAM CLI installed             (https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html)
+□ Docker installed locally          (https://docker.com) — required by SAM for Lambda builds
+□ NinjaTrader 8 on your desktop     (free tier is fine — signal generation only)
+□ IBKR account                      (paper trading account works for testing)
+□ Google account                    (for dashboard login)
 ```
 
 ---
@@ -28,201 +29,223 @@ aws configure
 # Default output format: json
 ```
 
-Create a dedicated IAM user for Terraform (recommended — don't use root):
+Create a dedicated IAM user for deployment (recommended — don't use root):
 ```
 AWS Console → IAM → Users → Create user
-  Username: terraform-trade-engine
-  Permissions: AdministratorAccess (for initial deploy only)
+  Username: trade-engine-deployer
+  Permissions: AdministratorAccess (for initial deploy — can be scoped down later)
   → Create access key → Command Line Interface
-  → Copy keys into aws configure above
+  → aws configure with these keys
 ```
 
 ---
 
 ## Step 2 — Google OAuth App
 
-This takes ~5 minutes and must be done before Terraform.
+This takes ~5 minutes and must be done before deploying.
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com)
-2. Top bar → Select project → New Project
-   - Name: `trade-engine-dashboard`
+2. Top bar → New Project → name: `trade-engine-dashboard`
 3. APIs & Services → OAuth consent screen
    - User Type: **External**
    - App name: `Trade Engine Dashboard`
-   - User support email: your Gmail
-   - Developer contact: your Gmail
-   - Save and Continue (skip scopes, skip test users)
+   - User support + developer contact: your Gmail
+   - Save and Continue (skip scopes and test users)
 4. APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID
    - Application type: **Web application**
    - Name: `trade-engine-web`
-   - Authorised JavaScript origins: leave blank for now
-   - Authorised redirect URIs: leave blank for now
+   - Leave redirect URIs **blank for now** (added in Step 6)
    - Click Create
-5. Copy the **Client ID** and **Client Secret** — you'll need them in Step 3
+5. Copy the **Client ID** and **Client Secret** — needed in Step 3
 
 ---
 
-## Step 3 — Configure Terraform Variables
+## Step 3 — Build and Deploy
 
 ```bash
 cd infra
-cp terraform.tfvars.example terraform.tfvars
+sam build
 ```
 
-Open `terraform.tfvars` and fill in every value:
-
-```hcl
-# ── AWS ──────────────────────────────────────────────────────
-aws_region = "us-east-2"           # your preferred AWS region
-
-# ── IB Credentials ───────────────────────────────────────────
-# These go into Secrets Manager — never committed to git
-ib_username   = "YOUR_IB_USERNAME"
-ib_password   = "YOUR_IB_PASSWORD"
-ib_account_id = "YOUR_IB_ACCOUNT_ID"
-ib_mode       = "paper"            # "paper" or "live"
-                                   # ⚠️  start with "paper" until fully tested
-
-# ── Google OAuth (from Step 2) ────────────────────────────────
-google_oauth_client_id     = "XXXX.apps.googleusercontent.com"
-google_oauth_client_secret = "XXXX"
-allowed_google_email       = "your.actual.email@gmail.com"
-                             # ONLY this Google account can log into dashboard
-
-# ── Your Desktop (NinjaTrader machine) ───────────────────────
-# Find your public IP: https://whatismyip.com
-your_desktop_ip = "YOUR.PUBLIC.IP.HERE"   # e.g. "12.34.56.78"
-
-# ── Alerts ───────────────────────────────────────────────────
-alert_phone_number = "+1XXXXXXXXXX"       # SNS SMS alerts (include country code)
-
-# ── Risk Defaults (adjustable later from dashboard) ──────────
-max_position_size   = 10     # max contracts/shares per strategy
-max_daily_loss_usd  = 500    # daily loss limit in USD
-order_cooldown_secs = 5      # seconds between identical signals
-```
-
----
-
-## Step 4 — Initialize and Deploy Infrastructure
-
+Deploy with your values:
 ```bash
-cd infra
-terraform init
+sam deploy \
+  --stack-name trade-engine \
+  --region us-east-2 \
+  --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM \
+  --resolve-s3 \
+  --parameter-overrides \
+    IbUsername=YOUR_IB_USERNAME \
+    IbPassword=YOUR_IB_PASSWORD \
+    IbAccountId=YOUR_IB_ACCOUNT_ID \
+    IbMode=paper \
+    GoogleOAuthClientId="XXXX.apps.googleusercontent.com" \
+    GoogleOAuthClientSecret="XXXX" \
+    AllowedGoogleEmail="your.email@gmail.com" \
+    YourDesktopIp="YOUR.PUBLIC.IP" \
+    AlertPhoneNumber="+1XXXXXXXXXX" \
+    MaxPositionSize=10 \
+    MaxDailyLossUsd=500 \
+    OrderCooldownSecs=5
 ```
 
-Review the plan before applying (important — read through it):
-```bash
-terraform plan
-```
-
-Deploy everything (~8 minutes):
-```bash
-terraform apply
-# Type "yes" when prompted
-```
+> SAM will show a changeset preview and ask for confirmation. Review it, then type **y**.
+> The full deploy takes approximately **10–15 minutes** (EC2 bootstrap is the slow step).
 
 When complete, save all outputs:
 ```bash
-terraform output > ../deployment-outputs.txt
-cat ../deployment-outputs.txt
+aws cloudformation describe-stacks \
+  --stack-name trade-engine \
+  --query 'Stacks[0].Outputs' \
+  --output table | tee deployment-outputs.txt
 ```
 
-You will see something like:
+You will see:
 ```
-dashboard_url         = "https://d1abc123def456.cloudfront.net"
-api_gateway_url       = "https://abc12345.execute-api.us-east-2.amazonaws.com/prod"
-signal_endpoint       = "https://abc12345.execute-api.us-east-2.amazonaws.com/prod/signal"
-cognito_hosted_ui     = "https://trade-engine-abc123.auth.us-east-2.amazoncognito.com/login"
-cognito_callback_url  = "https://trade-engine-abc123.auth.us-east-2.amazoncognito.com/oauth2/idpresponse"
-cognito_client_id     = "1abc2def3ghi4jkl"
-ecr_repository_url    = "123456789.dkr.ecr.us-east-2.amazonaws.com/trade-engine-dashboard"
-ec2_instance_id       = "i-0abc123def456789"
+DashboardUrl              https://d1abc123.cloudfront.net
+ApiGatewayUrl             https://abc123.execute-api.us-east-2.amazonaws.com/prod
+SignalEndpoint            https://abc123.execute-api.us-east-2.amazonaws.com/prod/signal
+CognitoHostedUi           https://trade-engine-xxx.auth.us-east-2.amazoncognito.com/login
+CognitoCallbackUrl        https://trade-engine-xxx.auth.us-east-2.amazoncognito.com/oauth2/idpresponse
+CognitoClientId           1abc2def3ghi4jkl
+EcrRepositoryUrl          123456789.dkr.ecr.us-east-2.amazonaws.com/trade-engine-dashboard-trade-engine
+Ec2InstanceId             i-0abc123def456789
+S3BucketName              trade-engine-dashboard-trade-engine-123456789
+CloudFrontDistributionId  EABC123DEF
 ```
-
-Keep this file — you need these values in the next steps.
 
 ---
 
-## Step 5 — Add Google Callback URL
+## Step 4 — Add Google Callback URLs
 
-Now that Terraform has created your Cognito domain, go back to Google Console:
+Now that Cognito is deployed, update your Google OAuth app:
 
 1. [console.cloud.google.com](https://console.cloud.google.com) → APIs & Services → Credentials
-2. Click your OAuth 2.0 Client ID (`trade-engine-web`)
-3. Under **Authorised redirect URIs** → Add URI:
+2. Click your OAuth Client ID (`trade-engine-web`)
+3. **Authorised redirect URIs** → Add:
    ```
-   (paste your cognito_callback_url from deployment-outputs.txt)
+   (paste CognitoCallbackUrl from deployment-outputs.txt)
    ```
-   Example: `https://trade-engine-abc123.auth.us-east-2.amazoncognito.com/oauth2/idpresponse`
-4. Under **Authorised JavaScript origins** → Add URI:
+4. **Authorised JavaScript origins** → Add:
    ```
-   (paste your dashboard_url from deployment-outputs.txt)
+   (paste DashboardUrl from deployment-outputs.txt)
    ```
-   Example: `https://d1abc123def456.cloudfront.net`
 5. Click Save
+
+Then update the Cognito App Client with the real dashboard URL:
+```bash
+# Get the User Pool ID
+USER_POOL_ID=$(aws cloudformation describe-stacks \
+  --stack-name trade-engine \
+  --query "Stacks[0].Outputs[?OutputKey=='CognitoHostedUi'].OutputValue" \
+  --output text | sed 's|https://trade-engine-||;s|\.auth.*||')
+
+CLIENT_ID=$(aws cloudformation describe-stacks \
+  --stack-name trade-engine \
+  --query "Stacks[0].Outputs[?OutputKey=='CognitoClientId'].OutputValue" \
+  --output text)
+
+DASHBOARD_URL=$(aws cloudformation describe-stacks \
+  --stack-name trade-engine \
+  --query "Stacks[0].Outputs[?OutputKey=='DashboardUrl'].OutputValue" \
+  --output text)
+
+aws cognito-idp update-user-pool-client \
+  --user-pool-id $USER_POOL_ID \
+  --client-id $CLIENT_ID \
+  --callback-urls "$DASHBOARD_URL" \
+  --logout-urls "$DASHBOARD_URL" \
+  --supported-identity-providers Google \
+  --allowed-o-auth-flows code \
+  --allowed-o-auth-scopes email openid profile \
+  --allowed-o-auth-flows-user-pool-client
+```
 
 ---
 
-## Step 6 — Build and Push Docker Image
+## Step 5 — Build and Push Dashboard Docker Image
 
 ```bash
 cd dashboard-api
 
+# Get ECR URL from outputs
+ECR_URL=$(aws cloudformation describe-stacks \
+  --stack-name trade-engine \
+  --query "Stacks[0].Outputs[?OutputKey=='EcrRepositoryUrl'].OutputValue" \
+  --output text)
+
 # Authenticate Docker to ECR
 aws ecr get-login-password --region us-east-2 | \
   docker login --username AWS --password-stdin \
-  $(terraform -chdir=../infra output -raw ecr_repository_url | cut -d/ -f1)
+  $(echo $ECR_URL | cut -d/ -f1)
 
-# Build image
+# Build and push
 docker build -t trade-engine-dashboard .
-
-# Tag and push
-ECR_URL=$(cd ../infra && terraform output -raw ecr_repository_url)
 docker tag trade-engine-dashboard:latest $ECR_URL:latest
 docker push $ECR_URL:latest
 ```
 
-Force ECS to pull the new image:
+Update the ECS task definition to pick up the new image:
 ```bash
+CLUSTER=$(aws cloudformation describe-stacks \
+  --stack-name trade-engine \
+  --query "Stacks[0].Outputs[?OutputKey=='EcsClusterName'].OutputValue" \
+  --output text)
+
 aws ecs update-service \
-  --cluster trade-engine \
-  --service dashboard-api \
+  --cluster $CLUSTER \
+  --service dashboard-api-trade-engine \
   --force-new-deployment \
   --region us-east-2
 ```
 
 ---
 
-## Step 7 — Configure Dashboard UI
+## Step 6 — Configure Dashboard UI
 
-Update the config file with your actual endpoints:
-
-```bash
-# Open dashboard-ui/js/config.js and update these lines:
-```
+Update `dashboard-ui/js/config.js` with your actual output values:
 
 ```javascript
-// dashboard-ui/js/config.js — UPDATE THESE VALUES
 window.CONFIG = {
-  apiUrl:          "PASTE_api_gateway_url_HERE",
-  cognitoDomain:   "PASTE_cognito_hosted_ui_domain_HERE",
-  // e.g. "https://trade-engine-abc123.auth.us-east-2.amazoncognito.com"
-  cognitoClientId: "PASTE_cognito_client_id_HERE",
-  dashboardUrl:    "PASTE_dashboard_url_HERE",
+  apiUrl:          "PASTE_ApiGatewayUrl_HERE",
+  dashboardUrl:    "PASTE_DashboardUrl_HERE",
+  cognitoDomain:   "PASTE_CognitoDomain_HERE",
+  // e.g. "https://trade-engine-xxx.auth.us-east-2.amazoncognito.com"
+  cognitoClientId: "PASTE_CognitoClientId_HERE",
+  cognitoScopes:   "email openid",
 };
 ```
 
-Deploy to S3:
+Also update the `ALLOWED_ORIGINS` environment variable in the ECS task definition:
 ```bash
-BUCKET=$(cd infra && terraform output -raw s3_bucket_name)
+# Re-deploy SAM with the correct dashboard URL in ALLOWED_ORIGINS
+sam deploy \
+  --stack-name trade-engine \
+  --region us-east-2 \
+  --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM \
+  --resolve-s3 \
+  --no-confirm-changeset \
+  --parameter-overrides \
+    ... (same as Step 3) ...
+```
+
+Deploy dashboard UI to S3:
+```bash
+BUCKET=$(aws cloudformation describe-stacks \
+  --stack-name trade-engine \
+  --query "Stacks[0].Outputs[?OutputKey=='S3BucketName'].OutputValue" \
+  --output text)
 
 aws s3 sync dashboard-ui/ s3://$BUCKET/ \
   --delete \
   --cache-control "max-age=300"
 
-# Invalidate CloudFront cache so changes appear immediately
-DIST_ID=$(cd infra && terraform output -raw cloudfront_distribution_id)
+# Invalidate CloudFront cache
+DIST_ID=$(aws cloudformation describe-stacks \
+  --stack-name trade-engine \
+  --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+  --output text)
+
 aws cloudfront create-invalidation \
   --distribution-id $DIST_ID \
   --paths "/*"
@@ -230,159 +253,192 @@ aws cloudfront create-invalidation \
 
 ---
 
-## Step 8 — Configure NinjaTrader
+## Step 7 — Configure NinjaTrader
 
-1. Find your API key:
-   ```bash
-   aws secretsmanager get-secret-value \
-     --secret-id trade-engine/api-key \
-     --query SecretString \
-     --output text | python3 -c "import sys,json; print(json.load(sys.stdin)['api_key'])"
-   ```
+Get your API key:
+```bash
+API_KEY_SECRET=$(aws cloudformation describe-stacks \
+  --stack-name trade-engine \
+  --query "Stacks[0].Outputs[?OutputKey=='ApiKeySecretName'].OutputValue" \
+  --output text 2>/dev/null || \
+  echo "trade-engine/api-key-trade-engine")
 
-2. Open `ninjatrader/OrchestratorClient.cs` and update lines 14–15:
-   ```csharp
-   private const string BaseUrl = "PASTE_signal_endpoint_base_HERE";
-   // e.g. "https://abc12345.execute-api.us-east-2.amazonaws.com/prod"
-   private const string ApiKey  = "PASTE_API_KEY_HERE";
-   ```
+aws secretsmanager get-secret-value \
+  --secret-id $API_KEY_SECRET \
+  --query SecretString \
+  --output text | python3 -c "import sys,json; print(json.load(sys.stdin)['api_key'])"
+```
 
-3. Copy both files to NinjaTrader:
-   - Windows: `Documents\NinjaTrader 8\bin\Custom\`
-   - Copy `OrchestratorClient.cs`
-   - Copy `StrategyTemplate.cs` (or your own strategy file)
+Update `ninjatrader/OrchestratorClient.cs` lines 18–20:
+```csharp
+private const string BaseUrl = "PASTE_ApiGatewayUrl_HERE";
+// e.g. "https://abc123.execute-api.us-east-2.amazonaws.com/prod"
+private const string ApiKey = "PASTE_API_KEY_HERE";
+```
 
-4. In NinjaTrader:
-   - Tools → Edit NinjaScript → Select file → Compile
-   - Do this for both files
-   - Green checkmark = success
+Copy both `.cs` files to NinjaTrader:
+- Windows: `Documents\NinjaTrader 8\bin\Custom\`
+- Compile: NinjaTrader → Tools → Edit NinjaScript → Compile both files
 
 ---
 
-## Step 9 — Verify the System
+## Step 8 — Verify the System
 
-Run these checks in order on a weekday between 9:00am–4:00pm ET.
+Run these checks between 9:30am–4:00pm ET on a weekday.
 
 **Check 1: EC2 started**
 ```bash
+EC2_ID=$(aws cloudformation describe-stacks \
+  --stack-name trade-engine \
+  --query "Stacks[0].Outputs[?OutputKey=='Ec2InstanceId'].OutputValue" \
+  --output text)
+
 aws ec2 describe-instances \
-  --instance-ids $(cd infra && terraform output -raw ec2_instance_id) \
+  --instance-ids $EC2_ID \
   --query 'Reservations[0].Instances[0].State.Name' \
   --output text
-# Expected: "running"
+# Expected: running
 ```
 
-**Check 2: CP Gateway authenticated**
+**Check 2: ECS task running**
 ```bash
-# The health endpoint proxies to CP Gateway via FastAPI
-curl -H "Authorization: Bearer $(get_cognito_token)" \
-  $(cd infra && terraform output -raw api_gateway_url)/health
-# Expected: { "cp_gateway": "authenticated", "trading_enabled": true }
+aws ecs describe-services \
+  --cluster trade-engine-trade-engine \
+  --services dashboard-api-trade-engine \
+  --query 'services[0].runningCount' \
+  --output text
+# Expected: 1
 ```
 
 **Check 3: Dashboard loads**
 ```
-Open: (your dashboard_url from deployment-outputs.txt)
-→ Should redirect to Google login
-→ Sign in with your allowed Google account
-→ Should see dashboard with empty positions
+Open: (DashboardUrl from deployment-outputs.txt)
+→ Redirects to Google login → sign in with AllowedGoogleEmail
+→ Should see dashboard with no open positions
 ```
 
-**Check 4: Test signal (paper trading only)**
+**Check 4: Send test signal**
 ```bash
-API_KEY=$(aws secretsmanager get-secret-value --secret-id trade-engine/api-key \
-  --query SecretString --output text | python3 -c "import sys,json; print(json.load(sys.stdin)['api_key'])")
+SIGNAL_URL=$(aws cloudformation describe-stacks \
+  --stack-name trade-engine \
+  --query "Stacks[0].Outputs[?OutputKey=='SignalEndpoint'].OutputValue" \
+  --output text)
 
-curl -X POST \
-  $(cd infra && terraform output -raw signal_endpoint) \
+API_KEY=$(aws secretsmanager get-secret-value \
+  --secret-id trade-engine/api-key-trade-engine \
+  --query SecretString --output text | \
+  python3 -c "import sys,json; print(json.load(sys.stdin)['api_key'])")
+
+curl -X POST "$SIGNAL_URL" \
   -H "X-API-Key: $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"strategy_id":"test","symbol":"AAPL","side":"BUY","quantity":1,"order_type":"MKT"}'
-
-# Expected: { "status": "accepted", "execution_arn": "arn:aws:states:..." }
+# Expected: {"status":"accepted","trade_id":"trade_...","execution_arn":"arn:aws:states:..."}
 ```
 
-**Check 5: Watch it in Step Functions**
+**Check 5: Watch Step Functions execution**
 ```
-AWS Console → Step Functions → State machines → trade-lifecycle
-→ Executions → should see your test execution running
-→ Click it → watch the state transitions in real time
+AWS Console → Step Functions → State machines → trade-engine-trade-lifecycle-trade-engine
+→ Executions tab → click the running execution → watch state transitions
 ```
 
 ---
 
-## Step 10 — Switch to Live Trading
+## Step 9 — Switch to Live Trading
 
-Only after paper trading works correctly for at least 1 week:
+Only after paper trading works correctly for at least **1 week**.
 
-1. Update `terraform.tfvars`:
-   ```hcl
-   ib_mode = "live"
-   ```
+```bash
+# Update IB mode secret
+aws secretsmanager update-secret \
+  --secret-id trade-engine/ib-credentials-trade-engine \
+  --secret-string '{"username":"IB_USER","password":"IB_PASS","account_id":"IB_ACCT","mode":"live"}'
 
-2. Update the secret:
-   ```bash
-   aws secretsmanager update-secret \
-     --secret-id trade-engine/ib-credentials \
-     --secret-string '{"username":"YOUR_IB_USERNAME","password":"YOUR_IB_PASSWORD","account_id":"YOUR_IB_ACCOUNT_ID","mode":"live"}'
-   ```
+# Redeploy with live mode (re-creates EC2 UserData with updated secret)
+sam deploy \
+  --stack-name trade-engine \
+  --region us-east-2 \
+  --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM \
+  --resolve-s3 \
+  --no-confirm-changeset \
+  --parameter-overrides IbMode=live [... rest of parameters ...]
 
-3. Restart CP Gateway to pick up the new mode:
-   ```bash
-   EC2_ID=$(cd infra && terraform output -raw ec2_instance_id)
-   aws ec2 reboot-instances --instance-ids $EC2_ID
-   # Wait 3 minutes for CP Gateway to re-authenticate
-   curl .../health  # verify authenticated
-   ```
+# Reboot EC2 to pick up new credentials
+EC2_ID=$(aws cloudformation describe-stacks \
+  --stack-name trade-engine \
+  --query "Stacks[0].Outputs[?OutputKey=='Ec2InstanceId'].OutputValue" \
+  --output text)
+aws ec2 reboot-instances --instance-ids $EC2_ID
+# Wait 3 minutes, then check /health
+```
 
 ---
 
 ## Maintenance
 
-### Daily (automatic — no action needed)
-- EC2 starts at 9:00am ET, stops at 4:30pm ET
-- CP Gateway authenticates automatically on start
-- ECS Fargate scales to 1 task at 9:00am, 0 at 4:30pm
+### Redeploy after code changes
 
-### Weekly
-```
-□ Review CloudWatch Logs for Lambda errors
-  AWS Console → CloudWatch → Log groups → /aws/lambda/trade-engine-*
-□ Check Step Functions execution history for any FAILED executions
-□ Verify dead man Lambda is running (CloudWatch → Rules → trade-engine-deadman)
+```bash
+cd infra
+sam build
+sam deploy --stack-name trade-engine --region us-east-2 \
+  --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM \
+  --resolve-s3 --no-confirm-changeset \
+  --parameter-overrides [... same parameters ...]
 ```
 
-### Monthly
-```
-□ Check AWS Cost Explorer — verify bill matches expected ~$24/month
-□ Review DynamoDB consumed capacity — should not be spiking
-□ Check CloudWatch log storage (auto-expires at 30 days if Terraform applied correctly)
+### View live logs
+
+```bash
+# Any Lambda (replace function name as needed)
+aws logs tail /aws/lambda/trade-engine-signal-trade-engine --follow
+
+# All trade-engine Lambdas
+aws logs tail /aws/lambda/trade-engine-trade-engine --follow \
+  --log-group-pattern trade-engine
+
+# ECS Fargate (dashboard API)
+aws logs tail /ecs/trade-engine-dashboard-trade-engine --follow
+
+# Step Functions
+aws logs tail /aws/states/trade-engine-trade-lifecycle-trade-engine --follow
 ```
 
 ### Every 90 Days — Rotate API Key
-```bash
-# 1. Generate new key
-NEW_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 
-# 2. Update Secrets Manager
+```bash
+# Generate a new key directly in Secrets Manager
+aws secretsmanager rotate-secret \
+  --secret-id trade-engine/api-key-trade-engine
+
+# OR manually:
+NEW_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 aws secretsmanager update-secret \
-  --secret-id trade-engine/api-key \
+  --secret-id trade-engine/api-key-trade-engine \
   --secret-string "{\"api_key\":\"$NEW_KEY\"}"
 
-# 3. Update API Gateway usage plan key
-# AWS Console → API Gateway → API Keys → delete old → create new → add to usage plan
-
-# 4. Update NinjaTrader OrchestratorClient.cs line 15
-# Recompile in NinjaTrader
+# Update OrchestratorClient.cs line 20 with new key → recompile in NinjaTrader
 ```
 
 ### If Your Home IP Changes
-```bash
-# Update terraform.tfvars
-your_desktop_ip = "NEW.IP.ADDRESS"
 
-cd infra && terraform apply
-# Only security group changes — takes ~30 seconds, no downtime
+```bash
+sam deploy ... --parameter-overrides YourDesktopIp="NEW.IP.ADDRESS" [other params]
+# Only Lambda authorizer and SG rules change — takes ~60 seconds, no downtime
+```
+
+### Destroy Everything
+
+```bash
+# Empty S3 bucket first (CloudFormation can't delete non-empty buckets)
+BUCKET=$(aws cloudformation describe-stacks \
+  --stack-name trade-engine \
+  --query "Stacks[0].Outputs[?OutputKey=='S3BucketName'].OutputValue" \
+  --output text)
+aws s3 rm s3://$BUCKET --recursive
+
+# Then delete the stack (DynamoDB tables have DeletionPolicy: Retain — delete manually if needed)
+sam delete --stack-name trade-engine --region us-east-2
 ```
 
 ---
@@ -391,63 +447,16 @@ cd infra && terraform apply
 
 | Symptom | Likely Cause | Fix |
 |---|---|---|
-| Signal returns 403 | Wrong API key or IP not whitelisted | Check `OrchestratorClient.cs` key; check `terraform.tfvars` IP |
-| Dashboard shows "Cannot connect" | Config.js not updated | Re-run Step 7 |
-| Dashboard login loops | Google callback URL wrong | Re-check Step 5 |
-| Dashboard login "Access Denied" | Wrong Google account | Only `allowed_google_email` can log in |
-| CP Gateway not authenticated at market open | EC2 took too long to start | Change scheduler to 8:45am ET in `infra/scheduler.tf` |
+| Signal returns 403 | Wrong API key or IP mismatch | Check `OrchestratorClient.cs` key; verify `YourDesktopIp` param |
+| Signal returns 401 | Authorizer Lambda error | Check `/aws/lambda/trade-engine-api-authorizer-trade-engine` logs |
+| Dashboard shows "Cannot connect" | `config.js` not updated | Re-run Step 6 |
+| Dashboard login loops | Cognito callback URL wrong | Re-run Step 4 Cognito update command |
+| Dashboard login "Access Denied" | Wrong Google account | Only `AllowedGoogleEmail` can log in |
+| ECS task not starting | ECR image not pushed | Re-run Step 5 |
+| ECS task keeps restarting | App crash — check logs | `aws logs tail /ecs/trade-engine-dashboard-trade-engine --follow` |
+| CP Gateway not authenticated at market open | EC2 took too long to start | Change `MarketOpenUtc` param 15 minutes earlier and redeploy |
 | Step Function stuck at WAIT_FOR_FILL | CP Gateway lost IB session | Check /health; trigger reauth via dashboard |
-| Fargate task not starting | ECR image not pushed | Re-run Step 6 |
-| No SNS texts arriving | Phone number not confirmed | AWS Console → SNS → Subscriptions → confirm your number |
-| ECS task keeps restarting | App crash — check logs | `aws logs tail /ecs/trade-engine-dashboard --follow` |
-| Dead man fired unexpectedly | Heartbeat gap > 15min | Check check_price Lambda CloudWatch logs |
-
----
-
-## Common Tasks
-
-### View live logs
-```bash
-# FastAPI dashboard
-aws logs tail /ecs/trade-engine-dashboard --follow
-
-# Any Lambda
-aws logs tail /aws/lambda/trade-engine-place-order --follow
-
-# All trade-engine logs together
-aws logs tail /aws/lambda/trade-engine --follow --log-group-pattern trade-engine
-```
-
-### Manually close all positions (emergency)
-```
-Dashboard → top right → "Close All" button
-OR
-curl -X POST .../actions/close-all-positions -H "Authorization: Bearer <token>"
-```
-
-### Pause trading without stopping everything
-```
-Dashboard → toggle "Trading Enabled"
-OR
-aws dynamodb put-item --table-name trade-engine-config \
-  --item '{"pk":{"S":"trading_enabled"},"value":{"BOOL":false}}'
-```
-
-### SSH into EC2 (for CP Gateway diagnostics)
-```bash
-# Preferred: SSM Session Manager (no port 22 needed)
-aws ssm start-session --target $(cd infra && terraform output -raw ec2_instance_id)
-
-# Inside the session:
-docker logs cp-gateway --tail 100
-docker ps
-```
-
-### Destroy everything
-```bash
-cd infra
-terraform destroy
-# Type "yes"
-# Note: S3 bucket must be emptied first:
-aws s3 rm s3://$(terraform output -raw s3_bucket_name) --recursive
-```
+| No SNS texts | Phone number not confirmed | AWS Console → SNS → Subscriptions → confirm your number |
+| Dead man fired unexpectedly | Heartbeat gap > 15min | Check `check_price` Lambda CloudWatch logs |
+| sam build fails | Docker not running | Start Docker Desktop, retry |
+| SAM deploy timeout | EC2 UserData taking too long | Check EC2 instance System Log in AWS Console |

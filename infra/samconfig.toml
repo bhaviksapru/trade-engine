@@ -1,0 +1,42 @@
+# samconfig.toml — SAM CLI configuration for trade-engine
+# Run: sam deploy --config-env default
+# Docs: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html
+
+version = 0.1
+
+[default]
+[default.global.parameters]
+stack_name = "trade-engine"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.deploy.parameters]
+stack_name          = "trade-engine"
+region              = "us-east-2"
+confirm_changeset   = true
+capabilities        = ["CAPABILITY_IAM", "CAPABILITY_AUTO_EXPAND", "CAPABILITY_NAMED_IAM"]
+resolve_s3          = true        # SAM creates and manages the S3 bucket for artifacts
+resolve_image_repos = false
+
+# Parameters are passed via --parameter-overrides or a separate params file
+# Copy the line below and fill in your values for the first deploy:
+#
+# sam deploy \
+#   --parameter-overrides \
+#     IbUsername=YOUR_IB_USERNAME \
+#     IbPassword=YOUR_IB_PASSWORD \
+#     IbAccountId=YOUR_IB_ACCOUNT_ID \
+#     IbMode=paper \
+#     GoogleOAuthClientId=XXXX.apps.googleusercontent.com \
+#     GoogleOAuthClientSecret=XXXX \
+#     AllowedGoogleEmail=your.email@gmail.com \
+#     YourDesktopIp=YOUR.PUBLIC.IP \
+#     AlertPhoneNumber=+1XXXXXXXXXX
+
+[default.validate.parameters]
+lint = true
+
+[default.sync.parameters]
+watch = true

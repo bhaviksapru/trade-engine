@@ -5,14 +5,18 @@
 
     "CheckPrice": {
       "Type": "Task",
-      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-check-price",
+      "Resource": "${CheckPriceFunctionArn}",
       "Parameters": {
         "trade_id.$": "$.trade_id",
         "symbol.$": "$.symbol",
         "stop_loss_price.$": "$.stop_loss_price",
         "take_profit_price.$": "$.take_profit_price",
         "fill_price.$": "$.fill_price",
-        "side.$": "$.side"
+        "fill_time.$": "$.fill_time",
+        "side.$": "$.side",
+        "quantity.$": "$.quantity",
+        "chain_count.$": "$.chain_count",
+        "execution_start.$": "$$.Execution.StartTime"
       },
       "ResultPath": "$.price_result",
       "Retry": [{ "ErrorEquals": ["Lambda.ServiceException"], "IntervalSeconds": 1, "MaxAttempts": 2 }],
@@ -63,13 +67,14 @@
       "Type": "Task",
       "Resource": "arn:aws:states:::states:startExecution",
       "Parameters": {
-        "StateMachineArn": "arn:aws:states:${AWS_REGION}:${AWS_ACCOUNT_ID}:stateMachine:trade-engine-monitoring-loop",
+        "StateMachineArn": "${MonitoringLoopArn}",
         "Input": {
           "trade_id.$": "$.trade_id",
           "symbol.$": "$.symbol",
           "side.$": "$.side",
           "quantity.$": "$.quantity",
           "fill_price.$": "$.fill_price",
+          "fill_time.$": "$.fill_time",
           "stop_loss_price.$": "$.stop_loss_price",
           "take_profit_price.$": "$.take_profit_price",
           "strategy_id.$": "$.strategy_id",

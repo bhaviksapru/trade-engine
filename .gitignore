@@ -1,35 +1,46 @@
-# Terraform — never commit state or secrets
-infra/.terraform/
-infra/*.tfstate
-infra/*.tfstate.backup
-infra/.terraform.lock.hcl
-infra/terraform.tfvars          # ← contains IB credentials and API keys
-infra/deployment-outputs.txt    # ← contains live AWS endpoint URLs
+# ── SAM / CloudFormation ──────────────────────────────────────────────────────
+.aws-sam/                        # SAM build artifacts
+infra/samconfig.toml             # may contain parameter defaults — review before committing
+infra/.aws-sam/
 
-# Python
+# ── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
 *.pyc
 *.pyo
 .venv/
 venv/
 .env
+*.egg-info/
+dist/
 
-# NinjaTrader compiled output
-ninjatrader/*.dll
-ninjatrader/bin/
+# ── Terraform (kept for reference — no longer used) ───────────────────────────
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.backup
+infra/.terraform.lock.hcl
+infra/terraform.tfvars
 
-# Environment files
+# ── Environment / Credentials — NEVER commit these ───────────────────────────
 .env
 .env.local
-*.env
+*.env                            # catches ibgateway.env, any other .env files
+!*.env.example                   # but DO commit .env.example files
 
-# AWS credentials — should never be in repo
+# deployment-outputs.txt contains live AWS URLs — exclude
+deployment-outputs.txt
+infra/deployment-outputs.txt
+
+# AWS credentials
 .aws/
 credentials
 
-# OS
+# ── NinjaTrader ───────────────────────────────────────────────────────────────
+ninjatrader/*.dll
+ninjatrader/bin/
+
+# ── OS ───────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 
-# Deployment outputs — contain live AWS URLs, exclude from git
-deployment-outputs.txt
+# ── Lambda layer build output ────────────────────────────────────────────────
+lambdas/layer/python/

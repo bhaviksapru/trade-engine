@@ -1,40 +1,76 @@
 version: "3.9"
 
+# ── LOCAL DEVELOPMENT ONLY ────────────────────────────────────────────────────
+# This docker-compose is for running IB Gateway + the orchestrator locally
+# to test the connection to Interactive Brokers before deploying to AWS.
+#
+# On AWS:
+#   - IB Gateway runs on EC2 (bootstrapped by SAM compute.yaml UserData)
+#   - Dashboard API runs on ECS Fargate (compute.yaml)
+#   - env vars come from Secrets Manager, not this file
+#
+# To use locally:
+#   cp gateway/config/ibgateway.env.example gateway/config/ibgateway.env
+#   # edit gateway/config/ibgateway.env with your IB credentials
+#   docker compose -f infra/docker-compose.yml up
+#
+# env_file paths are relative to THIS docker-compose.yml file (infra/).
+# ../gateway/config/ibgateway.env → trade-engine/gateway/config/ibgateway.env
+
 services:
 
-  # ── IB Gateway ──────────────────────────────────────────────
+  # ── IB Gateway ──────────────────────────────────────────────────────────────
   ibgateway:
     image: ghcr.io/gnzsnz/ib-gateway:stable
     restart: unless-stopped
     env_file:
-      - ../gateway/config/ibgateway.env
+      - ../gateway/config/ibgateway.env   # relative to infra/ → gateway/config/
     ports:
-      - "4001:4003"   # TWS API port (paper: 4002, live: 4001 inside container → maps to 4001)
-      - "5900:5900"   # VNC for debugging (disable in prod)
+      - "5000:5000"    # CP Gateway REST API (internal Lambda target in AWS)
+      - "5900:5900"    # VNC for debugging — disable in production
     volumes:
       - ibgateway_data:/root/Jts
     networks:
       - trade-net
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-k", "https://localhost:5000/v1/api/iserver/auth/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s   # IB Gateway takes ~45s to authenticate on startup
 
-  # ── Trade Orchestrator ───────────────────────────────────────
-  orchestrator:
+  # ── Dashboard API (local testing) ───────────────────────────────────────────
+  # In AWS this runs as ECS Fargate. Locally it talks to the ibgateway container.
+  dashboard-api:
     build:
-      context: ../orchestrator
+      context: ../dashboard-api
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file:
-      - ../gateway/config/ibgateway.env
+      - ../gateway/config/ibgateway.env   # IB creds (not needed by dashboard, but harmless)
     environment:
-      - IB_HOST=ibgateway
-      - IB_PORT=4003
+      # Minimal local env — in AWS these come from ECS task definition environment
+      - CP_GATEWAY_URL=http://ibgateway:5000
+      - TRADES_TABLE=trade-engine-trades-local
+      - CONFIG_TABLE=trade-engine-config-local
+      - POSITIONS_TABLE=trade-engine-positions-local
+      - COGNITO_REGION=us-east-2
+      - COGNITO_USER_POOL_ID=LOCAL_TESTING_ONLY
+      - COGNITO_CLIENT_ID=LOCAL_TESTING_ONLY
+      - ALLOWED_GOOGLE_EMAIL=your.email@gmail.com   # ✏️ update for local auth testing
+      - ALLOWED_ORIGINS=http://localhost:8080,http://localhost:3000
+      - EVENTS_SQS_QUEUE_URL=   # empty = WebSocket live feed disabled locally
+      - SNS_TOPIC_ARN=          # empty = no SMS alerts locally
     ports:
       - "8000:8000"
     depends_on:
-      - ibgateway
+      ibgateway:
+        condition: service_healthy
     networks:
       - trade-net
 
-  # ── Nginx Reverse Proxy (TLS termination) ────────────────────
+  # ── Nginx (local TLS termination) ───────────────────────────────────────────
+  # In AWS, CloudFront terminates TLS. Locally nginx handles it.
   nginx:
     image: nginx:alpine
     restart: unless-stopped
@@ -43,9 +79,9 @@ services:
       - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./certs:/etc/nginx/certs:ro       # place your TLS certs here
+      - ./certs:/etc/nginx/certs:ro   # place self-signed TLS certs here for local HTTPS
     depends_on:
-      - orchestrator
+      - dashboard-api
     networks:
       - trade-net
 

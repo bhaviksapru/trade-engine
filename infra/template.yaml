@@ -1,0 +1,753 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  trade-engine — SAM root template.
+  Defines all Lambda functions, Step Functions state machines, and API Gateway.
+  Infrastructure (VPC, DynamoDB, ECS, EC2, etc.) lives in nested stacks under infra/stacks/.
+
+# ── Parameters ────────────────────────────────────────────────────────────────
+
+Parameters:
+  IbUsername:
+    Type: String
+    NoEcho: true
+    Description: Interactive Brokers username
+  IbPassword:
+    Type: String
+    NoEcho: true
+    Description: Interactive Brokers password
+  IbAccountId:
+    Type: String
+    NoEcho: true
+    Description: Interactive Brokers account ID
+  IbMode:
+    Type: String
+    Default: paper
+    AllowedValues: [paper, live]
+    Description: paper or live — start with paper
+  GoogleOAuthClientId:
+    Type: String
+    Description: Google OAuth 2.0 Client ID
+  GoogleOAuthClientSecret:
+    Type: String
+    NoEcho: true
+    Description: Google OAuth 2.0 Client Secret
+  AllowedGoogleEmail:
+    Type: String
+    Description: Only this Google account can log into the dashboard
+  YourDesktopIp:
+    Type: String
+    Description: Your NinjaTrader machine public IP (e.g. 12.34.56.78)
+  AlertPhoneNumber:
+    Type: String
+    Description: SMS alert phone number including country code (e.g. +1XXXXXXXXXX)
+  MaxPositionSize:
+    Type: Number
+    Default: 10
+    Description: Max contracts/shares per strategy
+  MaxDailyLossUsd:
+    Type: Number
+    Default: 500
+    Description: Daily loss limit in USD — trading halts if exceeded
+  OrderCooldownSecs:
+    Type: Number
+    Default: 5
+    Description: Minimum seconds between identical signals
+  MaxTradeDurationMinutes:
+    Type: Number
+    Default: 120
+    Description: Maximum trade duration before timeout close
+  MarketOpenUtc:
+    Type: String
+    Default: "0 14 ? * MON-FRI *"
+    Description: Cron (UTC) to start EC2 + Fargate. Adjust for daylight saving.
+  MarketCloseUtc:
+    Type: String
+    Default: "30 21 ? * MON-FRI *"
+    Description: Cron (UTC) to stop EC2 + Fargate.
+
+# ── SAM Globals ───────────────────────────────────────────────────────────────
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Architectures: [x86_64]
+    Timeout: 30
+    MemorySize: 128
+    Tracing: Active
+    VpcConfig:
+      SecurityGroupIds:
+        - !GetAtt VpcStack.Outputs.SgLambdaWorkers
+      SubnetIds:
+        - !GetAtt VpcStack.Outputs.PrivateSubnet1
+        - !GetAtt VpcStack.Outputs.PrivateSubnet2
+    Environment:
+      Variables:
+        TRADES_TABLE: !GetAtt StorageStack.Outputs.TradesTableName
+        CONFIG_TABLE: !GetAtt StorageStack.Outputs.ConfigTableName
+        POSITIONS_TABLE: !GetAtt StorageStack.Outputs.PositionsTableName
+        EVENT_BUS_NAME: !GetAtt StorageStack.Outputs.EventBusName
+        SNS_TOPIC_ARN: !GetAtt StorageStack.Outputs.SnsTopicArn
+        CP_GATEWAY_URL: !GetAtt ComputeStack.Outputs.CpGatewayUrl
+    Layers:
+      - !Ref CommonDepsLayer
+
+# ── Infrastructure Nested Stacks ─────────────────────────────────────────────
+
+Resources:
+
+  VpcStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: stacks/vpc.yaml
+      Parameters:
+        YourDesktopIp: !Ref YourDesktopIp
+        StackName: !Ref AWS::StackName
+      Tags:
+        - Key: project
+          Value: trade-engine
+
+  StorageStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: stacks/storage.yaml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        AlertPhoneNumber: !Ref AlertPhoneNumber
+      Tags:
+        - Key: project
+          Value: trade-engine
+
+  SecretsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: stacks/secrets.yaml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        IbUsername: !Ref IbUsername
+        IbPassword: !Ref IbPassword
+        IbAccountId: !Ref IbAccountId
+        IbMode: !Ref IbMode
+        GoogleOAuthClientId: !Ref GoogleOAuthClientId
+        GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
+      Tags:
+        - Key: project
+          Value: trade-engine
+
+  CognitoStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: SecretsStack
+    Properties:
+      TemplateURL: stacks/cognito.yaml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        AllowedGoogleEmail: !Ref AllowedGoogleEmail
+        GoogleOAuthClientId: !Ref GoogleOAuthClientId
+        GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
+      Tags:
+        - Key: project
+          Value: trade-engine
+
+  ComputeStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: [VpcStack, StorageStack, SecretsStack, CognitoStack]
+    Properties:
+      TemplateURL: stacks/compute.yaml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        VpcId: !GetAtt VpcStack.Outputs.VpcId
+        PrivateSubnet1: !GetAtt VpcStack.Outputs.PrivateSubnet1
+        PrivateSubnet2: !GetAtt VpcStack.Outputs.PrivateSubnet2
+        PublicSubnet1: !GetAtt VpcStack.Outputs.PublicSubnet1
+        PublicSubnet2: !GetAtt VpcStack.Outputs.PublicSubnet2
+        SgCpGateway: !GetAtt VpcStack.Outputs.SgCpGateway
+        SgFargate: !GetAtt VpcStack.Outputs.SgFargate
+        SgAlb: !GetAtt VpcStack.Outputs.SgAlb
+        IbCredsSecretArn: !GetAtt SecretsStack.Outputs.IbCredsSecretArn
+        TradesTableName: !GetAtt StorageStack.Outputs.TradesTableName
+        ConfigTableName: !GetAtt StorageStack.Outputs.ConfigTableName
+        PositionsTableName: !GetAtt StorageStack.Outputs.PositionsTableName
+        TradesTableArn: !GetAtt StorageStack.Outputs.TradesTableArn
+        ConfigTableArn: !GetAtt StorageStack.Outputs.ConfigTableArn
+        PositionsTableArn: !GetAtt StorageStack.Outputs.PositionsTableArn
+        SqsQueueUrl: !GetAtt StorageStack.Outputs.SqsQueueUrl
+        SqsQueueArn: !GetAtt StorageStack.Outputs.SqsQueueArn
+        EventBusName: !GetAtt StorageStack.Outputs.EventBusName
+        SnsTopicArn: !GetAtt StorageStack.Outputs.SnsTopicArn
+        CognitoUserPoolId: !GetAtt CognitoStack.Outputs.UserPoolId
+        CognitoClientId: !GetAtt CognitoStack.Outputs.UserPoolClientId
+        AllowedGoogleEmail: !Ref AllowedGoogleEmail
+      Tags:
+        - Key: project
+          Value: trade-engine
+
+  FrontendStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: ComputeStack
+    Properties:
+      TemplateURL: stacks/frontend.yaml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        AlbDnsName: !GetAtt ComputeStack.Outputs.AlbDnsName
+      Tags:
+        - Key: project
+          Value: trade-engine
+
+# ── Shared Lambda Layer ───────────────────────────────────────────────────────
+
+  CommonDepsLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub trade-engine-common-${AWS::StackName}
+      Description: Shared Python dependencies for all trade-engine Lambdas
+      ContentUri: ../lambdas/layer/
+      CompatibleRuntimes: [python3.11]
+      RetentionPolicy: Delete
+    Metadata:
+      BuildMethod: python3.11
+
+# ── IAM: Shared Policies ─────────────────────────────────────────────────────
+
+  LambdaDynamoPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: DynamoDB access for trade-engine worker Lambdas
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:Query
+              - dynamodb:Scan
+            Resource:
+              - !GetAtt StorageStack.Outputs.TradesTableArn
+              - !Sub "${StorageStack.Outputs.TradesTableArn}/index/*"
+              - !GetAtt StorageStack.Outputs.ConfigTableArn
+              - !GetAtt StorageStack.Outputs.PositionsTableArn
+
+# ── Lambda: Risk Check ────────────────────────────────────────────────────────
+
+  RiskCheckFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub trade-engine-risk-check-${AWS::StackName}
+      CodeUri: ../lambdas/risk_check/
+      Handler: lambda_function.handler
+      Description: Pre-trade risk validation — checks daily loss, position size, trading hours
+      Environment:
+        Variables:
+          MAX_POSITION_SIZE: !Ref MaxPositionSize
+          MAX_DAILY_LOSS_USD: !Ref MaxDailyLossUsd
+      Policies:
+        - !Ref LambdaDynamoPolicy
+
+# ── Lambda: Place Order ───────────────────────────────────────────────────────
+
+  PlaceOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub trade-engine-place-order-${AWS::StackName}
+      CodeUri: ../lambdas/place_order/
+      Handler: lambda_function.handler
+      Description: Places order at IB via CP Gateway, writes DynamoDB
+      Timeout: 15
+      Policies:
+        - !Ref LambdaDynamoPolicy
+        - SecretsManagerGetSecretValuePolicy:
+            SecretArn: !GetAtt SecretsStack.Outputs.IbCredsSecretArn
+
+# ── Lambda: Wait For Fill ─────────────────────────────────────────────────────
+
+  WaitForFillFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub trade-engine-wait-for-fill-${AWS::StackName}
+      CodeUri: ../lambdas/wait_for_fill/
+      Handler: lambda_function.handler
+      Description: Polls CP Gateway until order is filled or timeout
+      Timeout: 30
+      Policies:
+        - !Ref LambdaDynamoPolicy
+
+# ── Lambda: Set Stop ──────────────────────────────────────────────────────────
+
+  SetStopFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub trade-engine-set-stop-${AWS::StackName}
+      CodeUri: ../lambdas/set_stop/
+      Handler: lambda_function.handler
+      Description: Places protective stop order at IB after fill
+      Timeout: 15
+      Environment:
+        Variables:
+          MAX_TRADE_DURATION_MINUTES: !Ref MaxTradeDurationMinutes
+      Policies:
+        - !Ref LambdaDynamoPolicy
+
+# ── Lambda: Check Price ───────────────────────────────────────────────────────
+
+  CheckPriceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub trade-engine-check-price-${AWS::StackName}
+      CodeUri: ../lambdas/check_price/
+      Handler: lambda_function.handler
+      Description: Fetches live price, evaluates stop/TP/timeout, publishes EventBridge
+      Timeout: 10
+      Environment:
+        Variables:
+          MAX_TRADE_DURATION_MINUTES: !Ref MaxTradeDurationMinutes
+      Policies:
+        - !Ref LambdaDynamoPolicy
+        - EventBridgePutEventsPolicy:
+            EventBusName: !GetAtt StorageStack.Outputs.EventBusName
+
+# ── Lambda: Close Position ────────────────────────────────────────────────────
+
+  ClosePositionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub trade-engine-close-position-${AWS::StackName}
+      CodeUri: ../lambdas/close_position/
+      Handler: lambda_function.handler
+      Description: Places market close order at IB, updates DynamoDB
+      Timeout: 15
+      Policies:
+        - !Ref LambdaDynamoPolicy
+
+# ── Lambda: Log Trade ─────────────────────────────────────────────────────────
+
+  LogTradeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub trade-engine-log-trade-${AWS::StackName}
+      CodeUri: ../lambdas/log_trade/
+      Handler: lambda_function.handler
+      Description: Final DynamoDB write, updates daily P&L, fires SNS alert
+      Policies:
+        - !Ref LambdaDynamoPolicy
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt StorageStack.Outputs.SnsTopicName
+
+# ── Lambda: Tickle ────────────────────────────────────────────────────────────
+
+  TickleFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub trade-engine-tickle-${AWS::StackName}
+      CodeUri: ../lambdas/tickle/
+      Handler: lambda_function.handler
+      Description: CP Gateway keep-alive — runs every 55s during market hours
+      Policies:
+        - !Ref LambdaDynamoPolicy
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt StorageStack.Outputs.SnsTopicName
+
+# ── Lambda: Portfolio Risk ────────────────────────────────────────────────────
+
+  PortfolioRiskFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub trade-engine-portfolio-risk-${AWS::StackName}
+      CodeUri: ../lambdas/portfolio_risk/
+      Handler: lambda_function.handler
+      Description: Cross-trade monitor — halts all trading if daily limit breached
+      Policies:
+        - !Ref LambdaDynamoPolicy
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt StorageStack.Outputs.SnsTopicName
+        - Statement:
+            - Effect: Allow
+              Action: states:StopExecution
+              Resource: !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:trade-engine-trade-lifecycle-${AWS::StackName}:*"
+
+# ── Lambda: Dead Man ──────────────────────────────────────────────────────────
+
+  DeadManFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub trade-engine-dead-man-${AWS::StackName}
+      CodeUri: ../lambdas/dead_man/
+      Handler: lambda_function.handler
+      Description: Emergency safety net — closes orphaned positions every 5min 24/7
+      Policies:
+        - !Ref LambdaDynamoPolicy
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt StorageStack.Outputs.SnsTopicName
+        - Statement:
+            - Effect: Allow
+              Action: states:StopExecution
+              Resource: !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:trade-engine-trade-lifecycle-${AWS::StackName}:*"
+
+# ── Lambda: Signal (API Gateway entry point) ──────────────────────────────────
+
+  SignalFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: TradeLifecycleStateMachine
+    Properties:
+      FunctionName: !Sub trade-engine-signal-${AWS::StackName}
+      CodeUri: ../lambdas/signal/
+      Handler: lambda_function.handler
+      Description: Receives NinjaTrader signals — validates, starts Step Functions execution
+      # No VPC needed — only calls DynamoDB (via endpoint) and Step Functions (via endpoint)
+      VpcConfig:
+        SecurityGroupIds:
+          - !GetAtt VpcStack.Outputs.SgLambdaWorkers
+        SubnetIds:
+          - !GetAtt VpcStack.Outputs.PrivateSubnet1
+          - !GetAtt VpcStack.Outputs.PrivateSubnet2
+      Environment:
+        Variables:
+          TRADE_LIFECYCLE_ARN: !Ref TradeLifecycleStateMachine
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !GetAtt StorageStack.Outputs.ConfigTableName
+        - StepFunctionsExecutionPolicy:
+            StateMachineName: !GetAtt TradeLifecycleStateMachine.Name
+      Events:
+        ApiEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TradeEngineApi
+            Path: /signal
+            Method: POST
+
+# ── API Gateway ───────────────────────────────────────────────────────────────
+
+  TradeEngineApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod
+      Description: Trade Engine — NinjaTrader signal ingestion endpoint
+      Auth:
+        DefaultAuthorizer: NONE
+      Tags:
+        project: trade-engine
+
+  # API key validation is done via a Lambda authorizer
+  ApiKeyAuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub trade-engine-api-authorizer-${AWS::StackName}
+      CodeUri: ../lambdas/api_authorizer/
+      Handler: lambda_function.handler
+      Description: Validates X-API-Key header and source IP for NinjaTrader endpoint
+      # No VPC needed — reads secret and validates only
+      VpcConfig: !Ref AWS::NoValue
+      Environment:
+        Variables:
+          API_KEY_SECRET_ARN: !GetAtt SecretsStack.Outputs.ApiKeySecretArn
+          ALLOWED_IP: !Ref YourDesktopIp
+      Policies:
+        - SecretsManagerGetSecretValuePolicy:
+            SecretArn: !GetAtt SecretsStack.Outputs.ApiKeySecretArn
+
+# ── Step Functions: Trade Lifecycle (Standard) ────────────────────────────────
+
+  TradeLifecycleStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub trade-engine-trade-lifecycle-${AWS::StackName}
+      Type: STANDARD
+      DefinitionUri: ../stepfunctions/trade_lifecycle.asl.json
+      DefinitionSubstitutions:
+        RiskCheckFunctionArn: !GetAtt RiskCheckFunction.Arn
+        PlaceOrderFunctionArn: !GetAtt PlaceOrderFunction.Arn
+        WaitForFillFunctionArn: !GetAtt WaitForFillFunction.Arn
+        SetStopFunctionArn: !GetAtt SetStopFunction.Arn
+        ClosePositionFunctionArn: !GetAtt ClosePositionFunction.Arn
+        LogTradeFunctionArn: !GetAtt LogTradeFunction.Arn
+        MonitoringLoopArn: !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:trade-engine-monitoring-loop-${AWS::StackName}"
+      Logging:
+        Level: ERROR
+        IncludeExecutionData: true
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt TradeLifecycleLogGroup.Arn
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref RiskCheckFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref PlaceOrderFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref WaitForFillFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref SetStopFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ClosePositionFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref LogTradeFunction
+        - Statement:
+            - Effect: Allow
+              Action:
+                - states:StartExecution
+                - states:DescribeExecution
+                - states:StopExecution
+              Resource: !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:trade-engine-monitoring-loop-${AWS::StackName}"
+            - Effect: Allow
+              Action:
+                - events:PutTargets
+                - events:PutRule
+                - events:DescribeRule
+              Resource: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctions*"
+        - CloudWatchLogsFullAccess
+
+  TradeLifecycleLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/states/trade-engine-trade-lifecycle-${AWS::StackName}
+      RetentionInDays: 30
+
+# ── Step Functions: Monitoring Loop (Express) ─────────────────────────────────
+
+  MonitoringLoopStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub trade-engine-monitoring-loop-${AWS::StackName}
+      Type: EXPRESS
+      DefinitionUri: ../stepfunctions/monitoring_loop.asl.json
+      DefinitionSubstitutions:
+        CheckPriceFunctionArn: !GetAtt CheckPriceFunction.Arn
+        MonitoringLoopArn: !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:trade-engine-monitoring-loop-${AWS::StackName}"
+      Logging:
+        Level: ERROR
+        IncludeExecutionData: false
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt MonitoringLoopLogGroup.Arn
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref CheckPriceFunction
+        - Statement:
+            - Effect: Allow
+              Action: states:StartExecution
+              Resource: !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:trade-engine-monitoring-loop-${AWS::StackName}"
+        - CloudWatchLogsFullAccess
+
+  MonitoringLoopLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/states/trade-engine-monitoring-loop-${AWS::StackName}
+      RetentionInDays: 7
+
+# ── CloudWatch Event Rules — Lambda Schedules ─────────────────────────────────
+
+  TickleSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub trade-engine-tickle-${AWS::StackName}
+      Description: Keep IB Gateway session alive every 55 seconds
+      ScheduleExpression: rate(1 minute)
+      State: DISABLED   # Enabled by market-open scheduler
+      Targets:
+        - Id: TickleTarget
+          Arn: !GetAtt TickleFunction.Arn
+
+  TicklePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt TickleFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt TickleSchedule.Arn
+
+  PortfolioRiskSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub trade-engine-portfolio-risk-${AWS::StackName}
+      Description: Cross-trade risk check every 60 seconds during market hours
+      ScheduleExpression: rate(1 minute)
+      State: DISABLED
+      Targets:
+        - Id: PortfolioRiskTarget
+          Arn: !GetAtt PortfolioRiskFunction.Arn
+
+  PortfolioRiskPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PortfolioRiskFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt PortfolioRiskSchedule.Arn
+
+  DeadManSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub trade-engine-dead-man-${AWS::StackName}
+      Description: Emergency position closer — runs every 5 minutes 24/7
+      ScheduleExpression: rate(5 minutes)
+      State: ENABLED   # Always on — safety net
+      Targets:
+        - Id: DeadManTarget
+          Arn: !GetAtt DeadManFunction.Arn
+
+  DeadManPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt DeadManFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DeadManSchedule.Arn
+
+# ── Market Open / Close Schedulers ────────────────────────────────────────────
+
+  MarketOpenRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: MarketOpenPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ec2:StartInstances
+                Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${ComputeStack.Outputs.Ec2InstanceId}"
+              - Effect: Allow
+                Action: ecs:UpdateService
+                Resource: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/${ComputeStack.Outputs.EcsClusterName}/${ComputeStack.Outputs.EcsServiceName}"
+              - Effect: Allow
+                Action: events:EnableRule
+                Resource:
+                  - !GetAtt TickleSchedule.Arn
+                  - !GetAtt PortfolioRiskSchedule.Arn
+
+  MarketCloseRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: MarketClosePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ec2:StopInstances
+                Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${ComputeStack.Outputs.Ec2InstanceId}"
+              - Effect: Allow
+                Action: ecs:UpdateService
+                Resource: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/${ComputeStack.Outputs.EcsClusterName}/${ComputeStack.Outputs.EcsServiceName}"
+              - Effect: Allow
+                Action: events:DisableRule
+                Resource:
+                  - !GetAtt TickleSchedule.Arn
+                  - !GetAtt PortfolioRiskSchedule.Arn
+
+  MarketOpenRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub trade-engine-market-open-${AWS::StackName}
+      Description: Start EC2 + Fargate at market open. Adjust cron for daylight saving.
+      ScheduleExpression: !Sub "cron(${MarketOpenUtc})"
+      State: ENABLED
+      Targets:
+        - Id: StartEc2
+          Arn: !Sub "arn:aws:ec2:${AWS::Region}::*"
+          RoleArn: !GetAtt MarketOpenRole.Arn
+          Input: !Sub '{"InstanceIds":["${ComputeStack.Outputs.Ec2InstanceId}"]}'
+        - Id: ScaleFargateUp
+          Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ComputeStack.Outputs.EcsClusterName}"
+          RoleArn: !GetAtt MarketOpenRole.Arn
+          Input: !Sub '{"cluster":"${ComputeStack.Outputs.EcsClusterName}","service":"${ComputeStack.Outputs.EcsServiceName}","desiredCount":1}'
+
+  MarketCloseRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub trade-engine-market-close-${AWS::StackName}
+      Description: Stop EC2 + Fargate at market close.
+      ScheduleExpression: !Sub "cron(${MarketCloseUtc})"
+      State: ENABLED
+      Targets:
+        - Id: StopEc2
+          Arn: !Sub "arn:aws:ec2:${AWS::Region}::*"
+          RoleArn: !GetAtt MarketCloseRole.Arn
+          Input: !Sub '{"InstanceIds":["${ComputeStack.Outputs.Ec2InstanceId}"]}'
+        - Id: ScaleFargateDown
+          Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ComputeStack.Outputs.EcsClusterName}"
+          RoleArn: !GetAtt MarketCloseRole.Arn
+          Input: !Sub '{"cluster":"${ComputeStack.Outputs.EcsClusterName}","service":"${ComputeStack.Outputs.EcsServiceName}","desiredCount":0}'
+
+# ── Outputs ───────────────────────────────────────────────────────────────────
+
+Outputs:
+  DashboardUrl:
+    Description: CloudFront dashboard URL — open this in browser
+    Value: !GetAtt FrontendStack.Outputs.DashboardUrl
+    Export:
+      Name: !Sub ${AWS::StackName}-DashboardUrl
+
+  ApiGatewayUrl:
+    Description: API Gateway URL (copy to dashboard-ui/js/config.js and OrchestratorClient.cs)
+    Value: !Sub "https://${TradeEngineApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+    Export:
+      Name: !Sub ${AWS::StackName}-ApiGatewayUrl
+
+  SignalEndpoint:
+    Description: Full NinjaTrader signal endpoint
+    Value: !Sub "https://${TradeEngineApi}.execute-api.${AWS::Region}.amazonaws.com/prod/signal"
+    Export:
+      Name: !Sub ${AWS::StackName}-SignalEndpoint
+
+  CognitoHostedUi:
+    Description: Cognito login URL
+    Value: !GetAtt CognitoStack.Outputs.HostedUiUrl
+    Export:
+      Name: !Sub ${AWS::StackName}-CognitoHostedUi
+
+  CognitoCallbackUrl:
+    Description: Add this to Google OAuth redirect URIs
+    Value: !GetAtt CognitoStack.Outputs.CallbackUrl
+    Export:
+      Name: !Sub ${AWS::StackName}-CognitoCallbackUrl
+
+  CognitoClientId:
+    Description: Cognito App Client ID (copy to dashboard-ui/js/config.js)
+    Value: !GetAtt CognitoStack.Outputs.UserPoolClientId
+    Export:
+      Name: !Sub ${AWS::StackName}-CognitoClientId
+
+  EcrRepositoryUrl:
+    Description: ECR URL — push dashboard-api Docker image here
+    Value: !GetAtt ComputeStack.Outputs.EcrRepositoryUrl
+    Export:
+      Name: !Sub ${AWS::StackName}-EcrRepositoryUrl
+
+  Ec2InstanceId:
+    Description: CP Gateway EC2 instance ID
+    Value: !GetAtt ComputeStack.Outputs.Ec2InstanceId
+    Export:
+      Name: !Sub ${AWS::StackName}-Ec2InstanceId
+
+  S3BucketName:
+    Description: Dashboard UI S3 bucket
+    Value: !GetAtt FrontendStack.Outputs.S3BucketName
+    Export:
+      Name: !Sub ${AWS::StackName}-S3BucketName
+
+  CloudFrontDistributionId:
+    Description: CloudFront distribution ID (needed for cache invalidation)
+    Value: !GetAtt FrontendStack.Outputs.CloudFrontDistributionId
+    Export:
+      Name: !Sub ${AWS::StackName}-CloudFrontDistributionId
+
+  TradeLifecycleArn:
+    Description: Step Functions trade lifecycle state machine ARN
+    Value: !Ref TradeLifecycleStateMachine
+    Export:
+      Name: !Sub ${AWS::StackName}-TradeLifecycleArn

@@ -1,0 +1,268 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Trade Engine — DynamoDB, SNS, SQS, EventBridge, S3
+
+Parameters:
+  StackName:
+    Type: String
+  AlertPhoneNumber:
+    Type: String
+
+Resources:
+
+# ── DynamoDB: Trades ──────────────────────────────────────────────────────────
+
+  TradesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain   # Never auto-delete trade history
+    Properties:
+      TableName: !Sub trade-engine-trades-${StackName}
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: trade_id
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: strategy_id
+          AttributeType: S
+        - AttributeName: created_at
+          AttributeType: S
+      KeySchema:
+        - AttributeName: trade_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: StatusIndex
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: StrategyIndex
+          KeySchema:
+            - AttributeName: strategy_id
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+# ── DynamoDB: Config ──────────────────────────────────────────────────────────
+
+  ConfigTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    Properties:
+      TableName: !Sub trade-engine-config-${StackName}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+
+# ── DynamoDB: Positions ───────────────────────────────────────────────────────
+
+  PositionsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    Properties:
+      TableName: !Sub trade-engine-positions-${StackName}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: strategy_id
+          AttributeType: S
+        - AttributeName: symbol
+          AttributeType: S
+      KeySchema:
+        - AttributeName: strategy_id
+          KeyType: HASH
+        - AttributeName: symbol
+          KeyType: RANGE
+
+# ── Seed initial config items via Custom Resource ─────────────────────────────
+
+  ConfigSeedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ConfigSeedPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:PutItem
+                Resource: !GetAtt ConfigTable.Arn
+
+  ConfigSeedFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub trade-engine-config-seed-${StackName}
+      Runtime: python3.11
+      Handler: index.handler
+      Role: !GetAtt ConfigSeedRole.Arn
+      Timeout: 30
+      Code:
+        ZipFile: |
+          import boto3, json, os
+          import cfnresponse
+
+          def handler(event, context):
+            try:
+              if event['RequestType'] == 'Delete':
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+                return
+              table_name = event['ResourceProperties']['TableName']
+              max_loss   = float(event['ResourceProperties']['MaxDailyLossUsd'])
+              max_pos    = int(event['ResourceProperties']['MaxPositionSize'])
+              cooldown   = int(event['ResourceProperties']['OrderCooldownSecs'])
+              ddb = boto3.resource('dynamodb')
+              t   = ddb.Table(table_name)
+              t.put_item(Item={'pk':'trading_enabled','value':True,'reason':'initial_deploy'})
+              t.put_item(Item={'pk':'risk_parameters','max_daily_loss_usd':str(max_loss),
+                               'max_position_size':str(max_pos),'order_cooldown_secs':str(cooldown)})
+              t.put_item(Item={'pk':'notification_preferences','enabled':True,
+                               'events':{'fill':True,'stop_hit':True,'tp_hit':True,
+                                         'daily_loss_limit':True,'emergency_close':True,'auth_failure':True}})
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+            except Exception as e:
+              cfnresponse.send(event, context, cfnresponse.FAILED, {'Error': str(e)})
+
+  ConfigSeedCustomResource:
+    Type: AWS::CloudFormation::CustomResource
+    DependsOn: ConfigTable
+    Properties:
+      ServiceToken: !GetAtt ConfigSeedFunction.Arn
+      TableName: !Ref ConfigTable
+      MaxDailyLossUsd: "500"
+      MaxPositionSize: "10"
+      OrderCooldownSecs: "5"
+
+# ── SNS: Alert Topic ──────────────────────────────────────────────────────────
+
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub trade-engine-alerts-${StackName}
+      Subscription:
+        - Protocol: sms
+          Endpoint: !Ref AlertPhoneNumber
+
+# ── SQS: EventBridge → Fargate WebSocket ─────────────────────────────────────
+
+  EventsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub trade-engine-events-${StackName}
+      MessageRetentionPeriod: 300    # 5 minutes — events are stale fast
+      VisibilityTimeout: 30
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt EventsDlq.Arn
+        maxReceiveCount: 3
+
+  EventsDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub trade-engine-events-dlq-${StackName}
+      MessageRetentionPeriod: 86400  # 1 day
+
+  EventsQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues: [!Ref EventsQueue]
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt EventsQueue.Arn
+
+# ── EventBridge: Custom Bus ───────────────────────────────────────────────────
+
+  TradeEventsBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Sub trade-engine-events-${StackName}
+
+  # Route PriceUpdate and TradeStateChange events to SQS for Fargate WebSocket
+  EventsToSqsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub trade-engine-events-to-sqs-${StackName}
+      EventBusName: !Ref TradeEventsBus
+      EventPattern:
+        source:
+          - trade-engine.check-price
+          - trade-engine.lifecycle
+        detail-type:
+          - PriceUpdate
+          - TradeStateChange
+      State: ENABLED
+      Targets:
+        - Id: EventsQueue
+          Arn: !GetAtt EventsQueue.Arn
+
+# ── S3: Dashboard UI ──────────────────────────────────────────────────────────
+
+  DashboardBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub trade-engine-dashboard-${StackName}-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+# ── CloudWatch Log Groups (30-day retention) ──────────────────────────────────
+
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/trade-engine-${StackName}
+      RetentionInDays: 30
+
+Outputs:
+  TradesTableName:
+    Value: !Ref TradesTable
+  TradesTableArn:
+    Value: !GetAtt TradesTable.Arn
+  ConfigTableName:
+    Value: !Ref ConfigTable
+  ConfigTableArn:
+    Value: !GetAtt ConfigTable.Arn
+  PositionsTableName:
+    Value: !Ref PositionsTable
+  PositionsTableArn:
+    Value: !GetAtt PositionsTable.Arn
+  SnsTopicArn:
+    Value: !Ref AlertTopic
+  SnsTopicName:
+    Value: !GetAtt AlertTopic.TopicName
+  SqsQueueUrl:
+    Value: !Ref EventsQueue
+  SqsQueueArn:
+    Value: !GetAtt EventsQueue.Arn
+  EventBusName:
+    Value: !Ref TradeEventsBus
+  EventBusArn:
+    Value: !GetAtt TradeEventsBus.Arn
+  DashboardBucketName:
+    Value: !Ref DashboardBucket
+  DashboardBucketArn:
+    Value: !GetAtt DashboardBucket.Arn

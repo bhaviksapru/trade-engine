@@ -5,7 +5,7 @@
 
     "PreTradeRiskCheck": {
       "Type": "Task",
-      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-risk-check",
+      "Resource": "${RiskCheckFunctionArn}",
       "Parameters": {
         "trade_id.$": "$.trade_id",
         "strategy_id.$": "$.strategy_id",
@@ -33,7 +33,7 @@
 
     "RejectedLog": {
       "Type": "Task",
-      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-log-trade",
+      "Resource": "${LogTradeFunctionArn}",
       "Parameters": {
         "trade_id.$": "$.trade_id",
         "status": "REJECTED",
@@ -44,7 +44,7 @@
 
     "PlaceOrder": {
       "Type": "Task",
-      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-place-order",
+      "Resource": "${PlaceOrderFunctionArn}",
       "Parameters": {
         "trade_id.$": "$.trade_id",
         "symbol.$": "$.symbol",
@@ -61,7 +61,7 @@
 
     "OrderFailedLog": {
       "Type": "Task",
-      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-log-trade",
+      "Resource": "${LogTradeFunctionArn}",
       "Parameters": {
         "trade_id.$": "$.trade_id",
         "status": "ORDER_FAILED",
@@ -72,7 +72,7 @@
 
     "WaitForFill": {
       "Type": "Task",
-      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-wait-for-fill",
+      "Resource": "${WaitForFillFunctionArn}",
       "Parameters": {
         "trade_id.$": "$.trade_id",
         "ib_order_id.$": "$.order_result.ib_order_id",
@@ -90,7 +90,7 @@
 
     "CancelOrder": {
       "Type": "Task",
-      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-close-position",
+      "Resource": "${ClosePositionFunctionArn}",
       "Parameters": {
         "trade_id.$": "$.trade_id",
         "ib_order_id.$": "$.order_result.ib_order_id",
@@ -101,7 +101,7 @@
 
     "SetProtectiveStop": {
       "Type": "Task",
-      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-set-stop",
+      "Resource": "${SetStopFunctionArn}",
       "Parameters": {
         "trade_id.$": "$.trade_id",
         "symbol.$": "$.symbol",
@@ -119,13 +119,14 @@
       "Type": "Task",
       "Resource": "arn:aws:states:::states:startExecution.sync:2",
       "Parameters": {
-        "StateMachineArn": "arn:aws:states:${AWS_REGION}:${AWS_ACCOUNT_ID}:stateMachine:trade-engine-monitoring-loop",
+        "StateMachineArn": "${MonitoringLoopArn}",
         "Input": {
           "trade_id.$": "$.trade_id",
           "symbol.$": "$.symbol",
           "side.$": "$.side",
           "quantity.$": "$.quantity",
           "fill_price.$": "$.fill_result.fill_price",
+          "fill_time.$": "$.fill_result.fill_time",
           "stop_loss_price.$": "$.stop_result.stop_loss_price",
           "take_profit_price.$": "$.stop_result.take_profit_price",
           "strategy_id.$": "$.strategy_id",
@@ -139,7 +140,7 @@
 
     "ClosePosition": {
       "Type": "Task",
-      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-close-position",
+      "Resource": "${ClosePositionFunctionArn}",
       "Parameters": {
         "trade_id.$": "$.trade_id",
         "symbol.$": "$.symbol",
@@ -156,7 +157,7 @@
 
     "EmergencyClose": {
       "Type": "Task",
-      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-close-position",
+      "Resource": "${ClosePositionFunctionArn}",
       "Parameters": {
         "trade_id.$": "$.trade_id",
         "symbol.$": "$.symbol",
@@ -171,7 +172,7 @@
 
     "LogAndAlert": {
       "Type": "Task",
-      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-log-trade",
+      "Resource": "${LogTradeFunctionArn}",
       "Parameters": {
         "trade_id.$": "$.trade_id",
         "strategy_id.$": "$.strategy_id",

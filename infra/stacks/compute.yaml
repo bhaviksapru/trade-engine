@@ -1,0 +1,460 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Trade Engine — EC2 CP Gateway, ECR, ECS Fargate dashboard, ALB
+
+Parameters:
+  StackName:
+    Type: String
+  VpcId:
+    Type: String
+  PrivateSubnet1:
+    Type: String
+  PrivateSubnet2:
+    Type: String
+  PublicSubnet1:
+    Type: String
+  PublicSubnet2:
+    Type: String
+  SgCpGateway:
+    Type: String
+  SgFargate:
+    Type: String
+  SgAlb:
+    Type: String
+  IbCredsSecretArn:
+    Type: String
+  TradesTableName:
+    Type: String
+  ConfigTableName:
+    Type: String
+  PositionsTableName:
+    Type: String
+  TradesTableArn:
+    Type: String
+  ConfigTableArn:
+    Type: String
+  PositionsTableArn:
+    Type: String
+  SqsQueueUrl:
+    Type: String
+  SqsQueueArn:
+    Type: String
+  EventBusName:
+    Type: String
+  SnsTopicArn:
+    Type: String
+  CognitoUserPoolId:
+    Type: String
+  CognitoClientId:
+    Type: String
+  AllowedGoogleEmail:
+    Type: String
+
+# Use latest Amazon Linux 2 AMI
+Mappings:
+  RegionAMI:
+    us-east-1:
+      AMI: ami-0440d3b780d96b29d
+    us-east-2:
+      AMI: ami-07b36ea9852e986ad
+    us-west-1:
+      AMI: ami-0a3f5e38fb8b1d1e6
+    us-west-2:
+      AMI: ami-0cf2b4e024cdb6960
+    eu-west-1:
+      AMI: ami-0905a3c97561e0b69
+    ap-southeast-1:
+      AMI: ami-0fa377108253bf620
+    ap-northeast-1:
+      AMI: ami-0d7d5b5b3f8a0c2db
+
+Resources:
+
+# ── ECR Repository ────────────────────────────────────────────────────────────
+
+  EcrRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub trade-engine-dashboard-${StackName}
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [{
+              "rulePriority": 1,
+              "description": "Keep last 5 images",
+              "selection": {"tagStatus": "any", "countType": "imageCountMoreThan", "countNumber": 5},
+              "action": {"type": "expire"}
+            }]
+          }
+
+# ── EC2: CP Gateway (IB Gateway) ──────────────────────────────────────────────
+
+  Ec2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore  # SSM Session Manager (no port 22 needed)
+      Policies:
+        - PolicyName: CpGatewayPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref IbCredsSecretArn
+
+  Ec2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref Ec2Role]
+
+  CpGatewayInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !FindInMap [RegionAMI, !Ref AWS::Region, AMI]
+      InstanceType: t3.small
+      IamInstanceProfile: !Ref Ec2InstanceProfile
+      SubnetId: !Ref PrivateSubnet1
+      SecurityGroupIds: [!Ref SgCpGateway]
+      Tags:
+        - Key: Name
+          Value: !Sub trade-engine-cp-gateway-${StackName}
+        - Key: project
+          Value: trade-engine
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -ex
+
+          # Install Docker
+          yum update -y
+          yum install -y docker aws-cli jq
+          systemctl enable docker
+          systemctl start docker
+
+          # Install docker-compose
+          curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
+            -o /usr/local/bin/docker-compose
+          chmod +x /usr/local/bin/docker-compose
+
+          # Fetch IB credentials from Secrets Manager
+          SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id "${IbCredsSecretArn}" \
+            --region "${AWS::Region}" \
+            --query SecretString --output text)
+
+          IB_USERNAME=$(echo $SECRET | jq -r .username)
+          IB_PASSWORD=$(echo $SECRET | jq -r .password)
+          IB_ACCOUNT_ID=$(echo $SECRET | jq -r .account_id)
+          IB_MODE=$(echo $SECRET | jq -r .mode)
+
+          # Write IB Gateway env file
+          mkdir -p /opt/ibgateway/config
+          cat > /opt/ibgateway/config/ibgateway.env << EOF
+          TWS_USERID=$IB_USERNAME
+          TWS_PASSWORD=$IB_PASSWORD
+          TRADING_MODE=$IB_MODE
+          TWS_SETTINGS_PATH=/root/Jts
+          VNC_SERVER_PASSWORD=changeme
+          READ_ONLY_API=no
+          EOF
+
+          # Write docker-compose.yml for IB Gateway
+          mkdir -p /opt/ibgateway
+          cat > /opt/ibgateway/docker-compose.yml << 'DOCKEREOF'
+          version: "3.9"
+          services:
+            ibgateway:
+              image: ghcr.io/gnzsnz/ib-gateway:stable
+              restart: unless-stopped
+              env_file:
+                - /opt/ibgateway/config/ibgateway.env
+              ports:
+                - "5000:5000"
+                - "5900:5900"
+              volumes:
+                - ibgateway_data:/root/Jts
+          volumes:
+            ibgateway_data:
+          DOCKEREOF
+
+          # Start IB Gateway
+          cd /opt/ibgateway
+          docker-compose up -d
+
+          # Signal completion
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource CpGatewayInstance --region ${AWS::Region}
+      CreationPolicy:
+        ResourceSignal:
+          Timeout: PT10M
+
+# ── ECS Cluster ───────────────────────────────────────────────────────────────
+
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub trade-engine-${StackName}
+      CapacityProviders: [FARGATE, FARGATE_SPOT]
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: project
+          Value: trade-engine
+
+# ── ECS IAM Roles ─────────────────────────────────────────────────────────────
+
+  EcsTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DashboardApiPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !Ref TradesTableArn
+                  - !Sub "${TradesTableArn}/index/*"
+                  - !Ref ConfigTableArn
+                  - !Ref PositionsTableArn
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !Ref SqsQueueArn
+              - Effect: Allow
+                Action: events:PutEvents
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref IbCredsSecretArn
+              - Effect: Allow
+                Action:
+                  - states:StopExecution
+                Resource: '*'
+
+  EcsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: EcrPullPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+
+# ── CloudWatch Log Group: Fargate ─────────────────────────────────────────────
+
+  FargateLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/trade-engine-dashboard-${StackName}
+      RetentionInDays: 30
+
+# ── ECS Task Definition ───────────────────────────────────────────────────────
+
+  DashboardTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub trade-engine-dashboard-${StackName}
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: '256'
+      Memory: '512'
+      TaskRoleArn: !GetAtt EcsTaskRole.Arn
+      ExecutionRoleArn: !GetAtt EcsExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: dashboard-api
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/trade-engine-dashboard-${StackName}:latest"
+          PortMappings:
+            - ContainerPort: 8000
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref FargateLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: dashboard
+          Environment:
+            - Name: TRADES_TABLE
+              Value: !Ref TradesTableName
+            - Name: CONFIG_TABLE
+              Value: !Ref ConfigTableName
+            - Name: POSITIONS_TABLE
+              Value: !Ref PositionsTableName
+            - Name: EVENTS_SQS_QUEUE_URL
+              Value: !Ref SqsQueueUrl
+            - Name: COGNITO_REGION
+              Value: !Ref AWS::Region
+            - Name: COGNITO_USER_POOL_ID
+              Value: !Ref CognitoUserPoolId
+            - Name: COGNITO_CLIENT_ID
+              Value: !Ref CognitoClientId
+            - Name: ALLOWED_GOOGLE_EMAIL
+              Value: !Ref AllowedGoogleEmail
+            - Name: CP_GATEWAY_URL
+              Value: !Sub "http://${CpGatewayInstance.PrivateIp}:5000"
+            - Name: SNS_TOPIC_ARN
+              Value: !Ref SnsTopicArn
+            # ✏️ ALLOWED_ORIGINS is updated post-deploy with CloudFront URL
+            - Name: ALLOWED_ORIGINS
+              Value: https://localhost
+          HealthCheck:
+            Command: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+          Essential: true
+
+# ── ALB ───────────────────────────────────────────────────────────────────────
+
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub trade-engine-alb-${StackName}
+      Type: application
+      Scheme: internet-facing
+      Subnets: [!Ref PublicSubnet1, !Ref PublicSubnet2]
+      SecurityGroups: [!Ref SgAlb]
+      Tags:
+        - Key: project
+          Value: trade-engine
+
+  AlbTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub te-dashboard-${StackName}
+      VpcId: !Ref VpcId
+      Protocol: HTTP
+      Port: 8000
+      TargetType: ip
+      HealthCheckPath: /health
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      # Enable sticky sessions for WebSocket
+      TargetGroupAttributes:
+        - Key: stickiness.enabled
+          Value: 'true'
+        - Key: stickiness.type
+          Value: lb_cookie
+        - Key: stickiness.lb_cookie.duration_seconds
+          Value: '86400'
+
+  # HTTP listener — redirects to HTTPS
+  AlbHttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: '443'
+            StatusCode: HTTP_301
+
+  # HTTPS listener — requires ACM certificate
+  # ✏️ To enable HTTPS on ALB, add an ACM certificate for your domain:
+  #    1. Request a cert in ACM for your domain
+  #    2. Uncomment the AlbHttpsListener below and add the cert ARN
+  #    3. Update SgAlb to allow port 443
+  # For now ALB uses HTTP (port 80) — suitable since CloudFront terminates TLS
+  AlbHttpDirectListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      Port: 8080
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref AlbTargetGroup
+
+# ── ECS Service ───────────────────────────────────────────────────────────────
+
+  DashboardService:
+    Type: AWS::ECS::Service
+    DependsOn: AlbHttpDirectListener
+    Properties:
+      ServiceName: !Sub dashboard-api-${StackName}
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref DashboardTaskDef
+      LaunchType: FARGATE
+      DesiredCount: 0    # Started by market-open scheduler
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+          SecurityGroups: [!Ref SgFargate]
+      LoadBalancers:
+        - ContainerName: dashboard-api
+          ContainerPort: 8000
+          TargetGroupArn: !Ref AlbTargetGroup
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      Tags:
+        - Key: project
+          Value: trade-engine
+
+Outputs:
+  EcrRepositoryUrl:
+    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/trade-engine-dashboard-${StackName}"
+  EcsClusterArn:
+    Value: !GetAtt EcsCluster.ClusterArn
+  EcsClusterName:
+    Value: !Ref EcsCluster
+  EcsServiceName:
+    Value: !GetAtt DashboardService.Name
+  AlbDnsName:
+    Value: !GetAtt Alb.DNSName
+  AlbArn:
+    Value: !Ref Alb
+  Ec2InstanceId:
+    Value: !Ref CpGatewayInstance
+  Ec2PrivateIp:
+    Value: !GetAtt CpGatewayInstance.PrivateIp
+  CpGatewayUrl:
+    Value: !Sub "http://${CpGatewayInstance.PrivateIp}:5000"
