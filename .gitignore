@@ -1,0 +1,35 @@
+# Terraform — never commit state or secrets
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.backup
+infra/.terraform.lock.hcl
+infra/terraform.tfvars          # ← contains IB credentials and API keys
+infra/deployment-outputs.txt    # ← contains live AWS endpoint URLs
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+
+# NinjaTrader compiled output
+ninjatrader/*.dll
+ninjatrader/bin/
+
+# Environment files
+.env
+.env.local
+*.env
+
+# AWS credentials — should never be in repo
+.aws/
+credentials
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Deployment outputs — contain live AWS URLs, exclude from git
+deployment-outputs.txt

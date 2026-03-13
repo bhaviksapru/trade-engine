@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Trade Engine — Infrastructure Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@300;400;600&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#0d0f14;--surface:#13161d;--surface2:#1a1e28;--border:#252a38;
+    --amber:#f0a500;--amber-dim:#a06800;--amber-glow:rgba(240,165,0,.12);
+    --green:#2ecc71;--red:#e74c3c;--blue:#3498db;--purple:#9b59b6;
+    --text:#c8cdd8;--muted:#5a6080;--white:#edf0f7;
+  }
+  body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;min-height:100vh;padding:40px 32px}
+  h1{font-family:'JetBrains Mono',monospace;font-size:1.1rem;font-weight:600;color:var(--amber);letter-spacing:.15em;text-transform:uppercase;margin-bottom:6px}
+  .subtitle{font-size:.8rem;color:var(--muted);letter-spacing:.08em;margin-bottom:40px}
+  .canvas{display:grid;grid-template-columns:220px 1fr 220px;gap:24px;align-items:start}
+  /* zones */
+  .zone{border:1px solid var(--border);border-radius:4px;padding:20px 16px;background:var(--surface)}
+  .zone-label{font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .zone-label::before{content:'';display:inline-block;width:3px;height:12px;background:currentColor}
+  .zone.desktop .zone-label{color:#3498db}
+  .zone.aws .zone-label{color:var(--amber)}
+  .zone.ibkr .zone-label{color:var(--green)}
+  /* boxes */
+  .box{background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:12px 14px;margin-bottom:10px;position:relative;cursor:default;transition:border-color .2s,background .2s}
+  .box:last-child{margin-bottom:0}
+  .box:hover{border-color:var(--amber-dim);background:#1e2330}
+  .box-title{font-family:'JetBrains Mono',monospace;font-size:.7rem;font-weight:600;color:var(--white);margin-bottom:3px}
+  .box-sub{font-size:.68rem;color:var(--muted);line-height:1.5}
+  .box-tag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:2px 6px;border-radius:2px;margin-top:6px;text-transform:uppercase;letter-spacing:.08em}
+  .tag-lambda{background:rgba(240,165,0,.15);color:var(--amber)}
+  .tag-fargate{background:rgba(52,152,219,.15);color:#3498db}
+  .tag-ec2{background:rgba(46,204,113,.15);color:var(--green)}
+  .tag-managed{background:rgba(155,89,182,.15);color:#9b59b6}
+  .tag-free{background:rgba(46,204,113,.1);color:#27ae60}
+  /* aws middle column */
+  .aws-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .aws-section{border:1px solid var(--border);border-radius:3px;padding:14px}
+  .aws-section-title{font-family:'JetBrains Mono',monospace;font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+  /* vpc box */
+  .vpc{grid-column:1/-1;border:1px dashed var(--amber-dim);border-radius:3px;padding:14px;margin-top:0}
+  .vpc .aws-section-title{color:var(--amber-dim)}
+  /* arrows */
+  .flow{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0 8px}
+  .arrow{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .arrow-line{width:1px;height:40px;background:linear-gradient(to bottom,var(--border),var(--amber-dim));position:relative}
+  .arrow-line::after{content:'▼';position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);color:var(--amber-dim);font-size:.55rem}
+  .arrow-label{font-family:'JetBrains Mono',monospace;font-size:.58rem;color:var(--muted);text-align:center;max-width:100px;line-height:1.4}
+  /* step functions highlight */
+  .sf-box{border-color:var(--amber-dim)!important}
+  /* legend */
+  .legend{display:flex;gap:20px;flex-wrap:wrap;margin-top:28px;padding-top:20px;border-top:1px solid var(--border)}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:.68rem;color:var(--muted)}
+  .legend-dot{width:8px;height:8px;border-radius:50%}
+</style>
+</head>
+<body>
+
+<h1>Infrastructure Architecture</h1>
+<p class="subtitle">trade-engine · AWS us-east-2 · market hours 9:00am–4:30pm ET Mon–Fri</p>
+
+<div class="canvas">
+
+  <!-- LEFT: Desktop -->
+  <div>
+    <div class="zone desktop">
+      <div class="zone-label">desktop</div>
+      <div class="box">
+        <div class="box-title">NinjaTrader 8</div>
+        <div class="box-sub">Strategy.cs<br/>Signal detection only<br/>Free tier</div>
+      </div>
+      <div class="box">
+        <div class="box-title">OrchestratorClient.cs</div>
+        <div class="box-sub">HTTPS POST /signal<br/>X-API-Key header<br/>IP-restricted</div>
+      </div>
+    </div>
+
+    <div style="height:32px;display:flex;align-items:center;justify-content:center;margin:8px 0">
+      <div style="text-align:center">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.58rem;color:var(--muted)">HTTPS TLS 1.3</div>
+        <div style="font-size:.65rem;color:var(--amber-dim)">↓ AWS-managed cert</div>
+      </div>
+    </div>
+
+    <div class="zone" style="border-color:var(--amber-dim)">
+      <div class="zone-label" style="color:var(--amber)">entry point</div>
+      <div class="box sf-box">
+        <div class="box-title">API Gateway</div>
+        <div class="box-sub">HTTP API<br/>API Key validation<br/>IP whitelist policy</div>
+        <span class="box-tag tag-managed">managed</span>
+      </div>
+    </div>
+
+    <div style="height:20px;display:flex;align-items:center;justify-content:center">
+      <div style="font-size:.65rem;color:var(--amber-dim)">↓ invokes</div>
+    </div>
+
+    <div class="zone" style="border-color:var(--border)">
+      <div class="zone-label">ingestion</div>
+      <div class="box">
+        <div class="box-title">Signal Lambda</div>
+        <div class="box-sub">Validates signal<br/>Checks trading_enabled<br/>Starts Step Functions</div>
+        <span class="box-tag tag-lambda">λ free tier</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MIDDLE: AWS -->
+  <div>
+    <div class="zone aws" style="padding:20px">
+      <div class="zone-label">aws managed services</div>
+
+      <div class="aws-grid">
+
+        <!-- Step Functions -->
+        <div class="aws-section sf-box" style="border-color:var(--amber-dim)">
+          <div class="aws-section-title" style="color:var(--amber)">Step Functions</div>
+          <div class="box">
+            <div class="box-title">Standard Workflow</div>
+            <div class="box-sub">Trade lifecycle<br/>PENDING→FILLED→OPEN→CLOSED<br/>Persists state in AWS</div>
+            <span class="box-tag tag-free">≤4K transitions free</span>
+          </div>
+          <div class="box">
+            <div class="box-title">Express Workflow</div>
+            <div class="box-sub">Nested monitoring loop<br/>Price check every 5s<br/>Stop/TP evaluation</div>
+            <span class="box-tag tag-lambda">$1/million transitions</span>
+          </div>
+        </div>
+
+        <!-- Lambdas -->
+        <div class="aws-section">
+          <div class="aws-section-title">Lambda Workers</div>
+          <div class="box"><div class="box-title">risk_check</div><div class="box-sub">Pre-trade validation</div><span class="box-tag tag-lambda">λ</span></div>
+          <div class="box"><div class="box-title">place_order</div><div class="box-sub">CP Gateway REST call</div><span class="box-tag tag-lambda">λ</span></div>
+          <div class="box"><div class="box-title">wait_for_fill</div><div class="box-sub">Poll for fill confirm</div><span class="box-tag tag-lambda">λ</span></div>
+          <div class="box"><div class="box-title">set_stop</div><div class="box-sub">Protective stop order</div><span class="box-tag tag-lambda">λ</span></div>
+          <div class="box"><div class="box-title">check_price</div><div class="box-sub">Live price snapshot</div><span class="box-tag tag-lambda">λ</span></div>
+          <div class="box"><div class="box-title">close_position</div><div class="box-sub">Market close order</div><span class="box-tag tag-lambda">λ</span></div>
+          <div class="box"><div class="box-title">log_trade</div><div class="box-sub">DynamoDB + SNS</div><span class="box-tag tag-lambda">λ</span></div>
+        </div>
+
+        <!-- Data Layer -->
+        <div class="aws-section">
+          <div class="aws-section-title">Data Layer</div>
+          <div class="box">
+            <div class="box-title">DynamoDB</div>
+            <div class="box-sub">trades / config / positions<br/>PITR enabled<br/>On-demand</div>
+            <span class="box-tag tag-managed">managed · ~$0.04/mo</span>
+          </div>
+          <div class="box">
+            <div class="box-title">EventBridge</div>
+            <div class="box-sub">trade-engine-events bus<br/>Price updates + lifecycle<br/>→ FastAPI WebSocket</div>
+            <span class="box-tag tag-free">free tier</span>
+          </div>
+          <div class="box">
+            <div class="box-title">Secrets Manager</div>
+            <div class="box-sub">IB creds / API keys<br/>Cognito secrets<br/>Never in code</div>
+            <span class="box-tag tag-managed">$1.60/mo</span>
+          </div>
+        </div>
+
+        <!-- Alerting + Auth -->
+        <div class="aws-section">
+          <div class="aws-section-title">Auth + Alerts</div>
+          <div class="box">
+            <div class="box-title">Cognito User Pool</div>
+            <div class="box-sub">Google federated login<br/>Single allowed email<br/>JWT issuance</div>
+            <span class="box-tag tag-managed">managed · free tier</span>
+          </div>
+          <div class="box">
+            <div class="box-title">SNS</div>
+            <div class="box-sub">SMS to your phone<br/>Fill / stop / emergency</div>
+            <span class="box-tag tag-free">free tier</span>
+          </div>
+          <div class="box">
+            <div class="box-title">CloudWatch</div>
+            <div class="box-sub">Logs (30-day retention)<br/>Scheduler rules<br/>Dead man trigger</div>
+            <span class="box-tag tag-managed">~$1/mo</span>
+          </div>
+        </div>
+
+        <!-- VPC / Private -->
+        <div class="aws-section vpc">
+          <div class="aws-section-title">VPC Private Subnet — never public internet</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="box">
+              <div class="box-title">EC2 t3.small</div>
+              <div class="box-sub">IBKR CP Gateway (Java)<br/>:5000 internal only<br/>sg-cpgateway</div>
+              <span class="box-tag tag-ec2">on-demand · $3.28/mo</span>
+            </div>
+            <div class="box">
+              <div class="box-title">ECS Fargate</div>
+              <div class="box-sub">FastAPI dashboard API<br/>REST + WebSocket<br/>sg-fargate</div>
+              <span class="box-tag tag-fargate">0.25vCPU · $1.94/mo</span>
+            </div>
+          </div>
+          <div style="margin-top:10px;padding:8px;border:1px solid var(--border);border-radius:2px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.58rem;color:var(--muted);margin-bottom:6px">VPC Endpoints (avoid NAT costs)</div>
+            <div style="font-size:.65rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px">
+              <span>dynamodb ▪</span><span>states ▪</span><span>secretsmanager ▪</span><span>ecr.api ▪</span><span>ecr.dkr ▪</span><span>logs</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Frontend -->
+        <div class="aws-section" style="grid-column:2/3">
+          <div class="aws-section-title">Frontend (public)</div>
+          <div class="box">
+            <div class="box-title">S3 Bucket</div>
+            <div class="box-sub">Static HTML/CSS/JS<br/>~50KB total<br/>Versioning enabled</div>
+            <span class="box-tag tag-free">~$0.01/mo</span>
+          </div>
+          <div class="box">
+            <div class="box-title">CloudFront CDN</div>
+            <div class="box-sub">HTTPS: auto TLS cert<br/>URL: XXXX.cloudfront.net<br/>→ S3 origin</div>
+            <span class="box-tag tag-managed">~$0.01/mo</span>
+          </div>
+          <div class="box">
+            <div class="box-title">ALB</div>
+            <div class="box-sub">WebSocket support<br/>→ Fargate :8000<br/>sg-alb</div>
+            <span class="box-tag tag-managed">$6.26/mo</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: IBKR -->
+  <div>
+    <div class="zone ibkr">
+      <div class="zone-label">interactive brokers</div>
+      <div class="box">
+        <div class="box-title">IB Servers</div>
+        <div class="box-sub">Order routing<br/>Position tracking<br/>Market data</div>
+      </div>
+      <div style="margin:10px 0;text-align:center;font-size:.65rem;color:var(--muted)">↑ authenticated session<br/>maintained by CP Gateway</div>
+    </div>
+
+    <div style="margin:20px 0">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);margin-bottom:10px;text-align:center">BACKGROUND LAMBDAS<br/>(always-on, free tier)</div>
+      <div class="zone" style="border-color:var(--border)">
+        <div class="box">
+          <div class="box-title">Tickle Lambda</div>
+          <div class="box-sub">Every 55s<br/>POST /tickle<br/>Keep IB session alive</div>
+          <span class="box-tag tag-lambda">λ free</span>
+        </div>
+        <div class="box">
+          <div class="box-title">Portfolio Risk Lambda</div>
+          <div class="box-sub">Every 60s<br/>Cross-trade drawdown<br/>Abort all if limit hit</div>
+          <span class="box-tag tag-lambda">λ free</span>
+        </div>
+        <div class="box">
+          <div class="box-title">Dead Man Lambda</div>
+          <div class="box-sub">Every 5min 24/7<br/>Orphaned positions<br/>Emergency close</div>
+          <span class="box-tag tag-lambda">λ free</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="zone" style="border-color:#3498db44">
+      <div class="zone-label" style="color:#3498db">your browser</div>
+      <div class="box">
+        <div class="box-title">Dashboard</div>
+        <div class="box-sub">Google login (Cognito)<br/>Live P&L (WebSocket)<br/>Actions: close, pause</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div>Step Functions state</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Free tier / negligible cost</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#3498db"></div>Public-facing (TLS)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#9b59b6"></div>AWS managed service</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--muted)"></div>Private VPC only</div>
+  <div style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--muted)">Total: ~$22/month · saves ~$78/month vs NinjaTrader</div>
+</div>
+
+</body>
+</html>

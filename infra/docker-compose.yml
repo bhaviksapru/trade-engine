@@ -1,0 +1,57 @@
+version: "3.9"
+
+services:
+
+  # ── IB Gateway ──────────────────────────────────────────────
+  ibgateway:
+    image: ghcr.io/gnzsnz/ib-gateway:stable
+    restart: unless-stopped
+    env_file:
+      - ../gateway/config/ibgateway.env
+    ports:
+      - "4001:4003"   # TWS API port (paper: 4002, live: 4001 inside container → maps to 4001)
+      - "5900:5900"   # VNC for debugging (disable in prod)
+    volumes:
+      - ibgateway_data:/root/Jts
+    networks:
+      - trade-net
+
+  # ── Trade Orchestrator ───────────────────────────────────────
+  orchestrator:
+    build:
+      context: ../orchestrator
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../gateway/config/ibgateway.env
+    environment:
+      - IB_HOST=ibgateway
+      - IB_PORT=4003
+    ports:
+      - "8000:8000"
+    depends_on:
+      - ibgateway
+    networks:
+      - trade-net
+
+  # ── Nginx Reverse Proxy (TLS termination) ────────────────────
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro       # place your TLS certs here
+    depends_on:
+      - orchestrator
+    networks:
+      - trade-net
+
+volumes:
+  ibgateway_data:
+
+networks:
+  trade-net:
+    driver: bridge

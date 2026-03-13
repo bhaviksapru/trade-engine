@@ -1,0 +1,190 @@
+{
+  "Comment": "Trade Engine — Standard Workflow (outer trade lifecycle)",
+  "StartAt": "PreTradeRiskCheck",
+  "States": {
+
+    "PreTradeRiskCheck": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-risk-check",
+      "Parameters": {
+        "trade_id.$": "$.trade_id",
+        "strategy_id.$": "$.strategy_id",
+        "symbol.$": "$.symbol",
+        "side.$": "$.side",
+        "quantity.$": "$.quantity"
+      },
+      "ResultPath": "$.risk_result",
+      "Retry": [{ "ErrorEquals": ["Lambda.ServiceException"], "IntervalSeconds": 2, "MaxAttempts": 2 }],
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "RejectedLog", "ResultPath": "$.error" }],
+      "Next": "RiskDecision"
+    },
+
+    "RiskDecision": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.risk_result.approved",
+          "BooleanEquals": true,
+          "Next": "PlaceOrder"
+        }
+      ],
+      "Default": "RejectedLog"
+    },
+
+    "RejectedLog": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-log-trade",
+      "Parameters": {
+        "trade_id.$": "$.trade_id",
+        "status": "REJECTED",
+        "reason.$": "States.JsonToString($.risk_result)"
+      },
+      "End": true
+    },
+
+    "PlaceOrder": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-place-order",
+      "Parameters": {
+        "trade_id.$": "$.trade_id",
+        "symbol.$": "$.symbol",
+        "side.$": "$.side",
+        "quantity.$": "$.quantity",
+        "order_type.$": "$.order_type",
+        "limit_price.$": "$.limit_price"
+      },
+      "ResultPath": "$.order_result",
+      "Retry": [{ "ErrorEquals": ["States.ALL"], "IntervalSeconds": 3, "MaxAttempts": 2 }],
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "OrderFailedLog", "ResultPath": "$.error" }],
+      "Next": "WaitForFill"
+    },
+
+    "OrderFailedLog": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-log-trade",
+      "Parameters": {
+        "trade_id.$": "$.trade_id",
+        "status": "ORDER_FAILED",
+        "error.$": "$.error"
+      },
+      "End": true
+    },
+
+    "WaitForFill": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-wait-for-fill",
+      "Parameters": {
+        "trade_id.$": "$.trade_id",
+        "ib_order_id.$": "$.order_result.ib_order_id",
+        "symbol.$": "$.symbol"
+      },
+      "ResultPath": "$.fill_result",
+      "TimeoutSeconds": 60,
+      "Retry": [{ "ErrorEquals": ["FillPending"], "IntervalSeconds": 2, "MaxAttempts": 15 }],
+      "Catch": [
+        { "ErrorEquals": ["States.Timeout", "FillTimeout"], "Next": "CancelOrder", "ResultPath": "$.error" },
+        { "ErrorEquals": ["States.ALL"], "Next": "OrderFailedLog", "ResultPath": "$.error" }
+      ],
+      "Next": "SetProtectiveStop"
+    },
+
+    "CancelOrder": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-close-position",
+      "Parameters": {
+        "trade_id.$": "$.trade_id",
+        "ib_order_id.$": "$.order_result.ib_order_id",
+        "action": "CANCEL"
+      },
+      "Next": "OrderFailedLog"
+    },
+
+    "SetProtectiveStop": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-set-stop",
+      "Parameters": {
+        "trade_id.$": "$.trade_id",
+        "symbol.$": "$.symbol",
+        "side.$": "$.side",
+        "quantity.$": "$.quantity",
+        "fill_price.$": "$.fill_result.fill_price",
+        "strategy_id.$": "$.strategy_id"
+      },
+      "ResultPath": "$.stop_result",
+      "Retry": [{ "ErrorEquals": ["States.ALL"], "IntervalSeconds": 2, "MaxAttempts": 3 }],
+      "Next": "StartMonitoring"
+    },
+
+    "StartMonitoring": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::states:startExecution.sync:2",
+      "Parameters": {
+        "StateMachineArn": "arn:aws:states:${AWS_REGION}:${AWS_ACCOUNT_ID}:stateMachine:trade-engine-monitoring-loop",
+        "Input": {
+          "trade_id.$": "$.trade_id",
+          "symbol.$": "$.symbol",
+          "side.$": "$.side",
+          "quantity.$": "$.quantity",
+          "fill_price.$": "$.fill_result.fill_price",
+          "stop_loss_price.$": "$.stop_result.stop_loss_price",
+          "take_profit_price.$": "$.stop_result.take_profit_price",
+          "strategy_id.$": "$.strategy_id",
+          "chain_count": 0
+        }
+      },
+      "ResultPath": "$.monitor_result",
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "EmergencyClose", "ResultPath": "$.error" }],
+      "Next": "ClosePosition"
+    },
+
+    "ClosePosition": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-close-position",
+      "Parameters": {
+        "trade_id.$": "$.trade_id",
+        "symbol.$": "$.symbol",
+        "side.$": "$.side",
+        "quantity.$": "$.quantity",
+        "exit_reason.$": "$.monitor_result.exit_reason",
+        "action": "CLOSE"
+      },
+      "ResultPath": "$.close_result",
+      "Retry": [{ "ErrorEquals": ["States.ALL"], "IntervalSeconds": 2, "MaxAttempts": 3 }],
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "EmergencyClose", "ResultPath": "$.error" }],
+      "Next": "LogAndAlert"
+    },
+
+    "EmergencyClose": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-close-position",
+      "Parameters": {
+        "trade_id.$": "$.trade_id",
+        "symbol.$": "$.symbol",
+        "side.$": "$.side",
+        "quantity.$": "$.quantity",
+        "exit_reason": "EMERGENCY",
+        "action": "CLOSE"
+      },
+      "ResultPath": "$.close_result",
+      "Next": "LogAndAlert"
+    },
+
+    "LogAndAlert": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-log-trade",
+      "Parameters": {
+        "trade_id.$": "$.trade_id",
+        "strategy_id.$": "$.strategy_id",
+        "symbol.$": "$.symbol",
+        "side.$": "$.side",
+        "quantity.$": "$.quantity",
+        "fill_price.$": "$.fill_result.fill_price",
+        "close_price.$": "$.close_result.close_price",
+        "exit_reason.$": "$.close_result.exit_reason",
+        "status": "CLOSED"
+      },
+      "End": true
+    }
+
+  }
+}

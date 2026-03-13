@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Trade Engine — Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    :root {
+      --black:#0a0a0a; --dark:#111214; --panel:#16181c; --border:#2a2d35;
+      --amber:#f5a623; --amber-dim:#c47d0e; --amber-glow:rgba(245,166,35,.12);
+      --white:#f0ece4; --muted:#7a7d85; --text:#ccc9be;
+      --green:#4caf7d; --red:#e05555; --yellow:#f5c623;
+    }
+    body { background:var(--black); color:var(--text); font-family:'DM Sans',sans-serif;
+           font-weight:300; min-height:100vh; }
+    body::before { content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      opacity:.5; }
+
+    /* ── NAV ── */
+    nav { position:sticky; top:0; z-index:100; background:rgba(10,10,10,.92);
+          backdrop-filter:blur(12px); border-bottom:1px solid var(--border);
+          padding:0 6vw; height:56px; display:flex; align-items:center; justify-content:space-between; }
+    .nav-brand { font-family:'Bebas Neue',sans-serif; font-size:1.3rem; letter-spacing:.08em; color:var(--white); }
+    .nav-brand span { color:var(--amber); }
+    .nav-right { display:flex; align-items:center; gap:1.5rem; }
+    .status-dot { width:8px; height:8px; border-radius:50%; background:var(--muted); transition:background .3s; }
+    .status-dot.ok  { background:var(--green); box-shadow:0 0 8px var(--green); }
+    .status-dot.err { background:var(--red);   box-shadow:0 0 8px var(--red); }
+    .status-label { font-family:'DM Mono',monospace; font-size:.65rem; letter-spacing:.15em;
+                    text-transform:uppercase; color:var(--muted); }
+    .nav-logout { font-family:'DM Mono',monospace; font-size:.62rem; letter-spacing:.12em;
+                  text-transform:uppercase; color:var(--muted); cursor:pointer; background:none;
+                  border:none; transition:color .2s; }
+    .nav-logout:hover { color:var(--amber); }
+
+    /* ── LAYOUT ── */
+    main { padding:3rem 6vw; position:relative; z-index:1; max-width:1400px; margin:0 auto; }
+    .grid-top { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:1.5rem; }
+    .grid-mid  { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem; }
+    .grid-bot  { display:grid; grid-template-columns:1fr; gap:1rem; }
+
+    /* ── CARDS ── */
+    .card { background:var(--panel); border:1px solid var(--border); padding:1.5rem; position:relative; }
+    .card-label { font-family:'DM Mono',monospace; font-size:.6rem; letter-spacing:.2em;
+                  text-transform:uppercase; color:var(--muted); margin-bottom:.5rem;
+                  display:flex; align-items:center; gap:.6rem; }
+    .card-label::before { content:''; display:inline-block; width:16px; height:1px; background:currentColor; }
+    .card-value { font-family:'Bebas Neue',sans-serif; font-size:2.2rem; line-height:1;
+                  color:var(--white); letter-spacing:.03em; }
+    .card-value.green { color:var(--green); }
+    .card-value.red   { color:var(--red); }
+    .card-value.amber { color:var(--amber); }
+    .card-sub { font-size:.75rem; color:var(--muted); margin-top:.3rem; }
+
+    /* ── SECTION HEADERS ── */
+    .section-tag { font-family:'DM Mono',monospace; font-size:.62rem; letter-spacing:.22em;
+                   text-transform:uppercase; color:var(--amber); margin-bottom:.8rem;
+                   display:flex; align-items:center; gap:.6rem; }
+    .section-tag::before { content:''; display:inline-block; width:20px; height:1px; background:var(--amber); }
+    .section-title { font-family:'Bebas Neue',sans-serif; font-size:1.6rem; color:var(--white); margin-bottom:1rem; }
+
+    /* ── TABLE ── */
+    table { width:100%; border-collapse:collapse; }
+    thead tr { border-bottom:1px solid var(--border); }
+    th { font-family:'DM Mono',monospace; font-size:.6rem; letter-spacing:.15em; text-transform:uppercase;
+         color:var(--muted); padding:.6rem .8rem; text-align:left; font-weight:400; }
+    tbody tr { border-bottom:1px solid var(--border); transition:background .15s; }
+    tbody tr:hover { background:var(--amber-glow); }
+    tbody tr:last-child { border-bottom:none; }
+    td { padding:.75rem .8rem; font-size:.82rem; }
+    td.mono { font-family:'DM Mono',monospace; font-size:.72rem; }
+    .badge { display:inline-block; font-family:'DM Mono',monospace; font-size:.58rem;
+             padding:2px 7px; letter-spacing:.06em; text-transform:uppercase; }
+    .badge-open   { background:rgba(245,166,35,.15); color:var(--amber); }
+    .badge-closed { background:rgba(76,175,125,.1);  color:var(--green); }
+    .badge-reject { background:rgba(224,85,85,.1);   color:var(--red); }
+    .badge-buy    { color:var(--green); font-weight:500; }
+    .badge-sell   { color:var(--red);   font-weight:500; }
+
+    /* ── CONTROLS ── */
+    .controls { display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.5rem; }
+    .btn { font-family:'DM Mono',monospace; font-size:.65rem; letter-spacing:.12em;
+           text-transform:uppercase; padding:.55rem 1.2rem; border:1px solid var(--border);
+           background:var(--panel); color:var(--text); cursor:pointer; transition:all .2s; }
+    .btn:hover { border-color:var(--amber-dim); color:var(--amber); }
+    .btn-danger { border-color:var(--red); color:var(--red); }
+    .btn-danger:hover { background:rgba(224,85,85,.1); }
+    .btn-primary { border-color:var(--amber-dim); color:var(--amber); }
+    .btn-primary:hover { background:var(--amber-glow); }
+    .toggle-wrap { display:flex; align-items:center; gap:.75rem; }
+    .toggle { position:relative; width:40px; height:22px; }
+    .toggle input { opacity:0; width:0; height:0; }
+    .toggle-slider { position:absolute; inset:0; background:var(--border); cursor:pointer; transition:.3s; }
+    .toggle-slider::before { content:''; position:absolute; width:16px; height:16px; left:3px; bottom:3px;
+                              background:var(--muted); transition:.3s; }
+    .toggle input:checked + .toggle-slider { background:var(--amber-glow); border:1px solid var(--amber-dim); }
+    .toggle input:checked + .toggle-slider::before { transform:translateX(18px); background:var(--amber); }
+    .toggle-label { font-family:'DM Mono',monospace; font-size:.65rem; letter-spacing:.12em;
+                    text-transform:uppercase; color:var(--muted); }
+
+    /* ── LIVE INDICATOR ── */
+    .live-badge { display:flex; align-items:center; gap:.4rem; font-family:'DM Mono',monospace;
+                  font-size:.6rem; letter-spacing:.15em; text-transform:uppercase; color:var(--muted); }
+    .live-dot { width:7px; height:7px; border-radius:50%; background:var(--muted); }
+    .live-dot.live { background:var(--green); animation:pulse-live 2s infinite; }
+    @keyframes pulse-live { 0%,100%{box-shadow:0 0 0 0 rgba(76,175,125,.4)} 50%{box-shadow:0 0 0 5px rgba(76,175,125,0)} }
+
+    /* ── EMPTY STATE ── */
+    .empty { text-align:center; padding:3rem; color:var(--muted); font-family:'DM Mono',monospace;
+             font-size:.72rem; letter-spacing:.1em; }
+
+    /* ── TOAST ── */
+    #toast { position:fixed; bottom:2rem; right:2rem; z-index:999;
+             font-family:'DM Mono',monospace; font-size:.7rem; letter-spacing:.1em;
+             padding:.7rem 1.2rem; background:var(--panel); border:1px solid var(--border);
+             color:var(--text); opacity:0; transition:opacity .3s; pointer-events:none; }
+    #toast.show { opacity:1; }
+    #toast.ok  { border-color:var(--green); color:var(--green); }
+    #toast.err { border-color:var(--red);   color:var(--red); }
+
+    @media(max-width:900px) {
+      .grid-top { grid-template-columns:1fr 1fr; }
+      .grid-mid  { grid-template-columns:1fr; }
+    }
+    @media(max-width:500px) {
+      .grid-top { grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">Trade <span>Engine</span></div>
+  <div class="nav-right">
+    <div class="live-badge"><div class="live-dot" id="ws-dot"></div><span id="ws-label">Connecting</span></div>
+    <div style="display:flex;align-items:center;gap:.4rem">
+      <div class="status-dot" id="ib-dot"></div>
+      <span class="status-label" id="ib-label">IB</span>
+    </div>
+    <button class="nav-logout" onclick="Auth.logout()">Logout</button>
+  </div>
+</nav>
+
+<main>
+
+  <!-- METRIC CARDS -->
+  <div class="grid-top">
+    <div class="card">
+      <div class="card-label">Daily P&L</div>
+      <div class="card-value" id="metric-pnl">—</div>
+      <div class="card-sub" id="metric-pnl-sub">loading...</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Open Positions</div>
+      <div class="card-value" id="metric-open">—</div>
+      <div class="card-sub">active trades</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Today's Trades</div>
+      <div class="card-value" id="metric-count">—</div>
+      <div class="card-sub" id="metric-winrate">win rate loading</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Daily Limit Used</div>
+      <div class="card-value" id="metric-limit">—</div>
+      <div class="card-sub" id="metric-limit-sub">of max loss limit</div>
+    </div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls">
+    <button class="btn btn-danger" onclick="confirmCloseAll()">⬛ Close All Positions</button>
+    <div class="toggle-wrap">
+      <label class="toggle">
+        <input type="checkbox" id="trading-toggle" onchange="toggleTrading(this.checked)"/>
+        <span class="toggle-slider"></span>
+      </label>
+      <span class="toggle-label" id="trading-label">Trading Enabled</span>
+    </div>
+    <button class="btn" onclick="openNotifModal()">🔔 Notifications</button>
+    <button class="btn" onclick="openRiskModal()">⚙️ Risk Limits</button>
+    <button class="btn btn-primary" onclick="refreshAll()">↺ Refresh</button>
+  </div>
+
+  <!-- OPEN POSITIONS + HEALTH -->
+  <div class="grid-mid">
+    <div class="card">
+      <div class="section-tag">Live</div>
+      <div class="section-title">Open Positions</div>
+      <div id="positions-body"><div class="empty">No open positions</div></div>
+    </div>
+    <div class="card">
+      <div class="section-tag">System</div>
+      <div class="section-title">Health</div>
+      <div id="health-body" style="font-family:'DM Mono',monospace;font-size:.78rem;line-height:2">Loading...</div>
+    </div>
+  </div>
+
+  <!-- TRADE HISTORY -->
+  <div class="grid-bot">
+    <div class="card">
+      <div class="section-tag">History</div>
+      <div class="section-title">Recent Trades</div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Trade ID</th><th>Symbol</th><th>Side</th><th>Qty</th>
+              <th>Fill</th><th>Close</th><th>P&L</th><th>Exit</th><th>Status</th><th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="trades-body">
+            <tr><td colspan="10" class="empty">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- MODALS (simplified) -->
+<div id="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center">
+  <div id="modal-box" style="background:var(--panel);border:1px solid var(--border);padding:2rem;min-width:320px;max-width:480px;width:90%">
+    <div id="modal-content"></div>
+    <div style="display:flex;gap:.75rem;margin-top:1.5rem;justify-content:flex-end">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="modal-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/websocket.js"></script>
+<script>
+(async () => {
+  // Auth guard
+  const token = await Auth.requireAuth();
+  if (!token) return;
+
+  // Initial data load
+  await refreshAll();
+
+  // Wire WebSocket live feed
+  LiveFeed.on("PriceUpdate", onPriceUpdate);
+  LiveFeed.on("TradeStateChange", onTradeStateChange);
+  LiveFeed.on("connected",    () => setWsStatus(true));
+  LiveFeed.on("disconnected", () => setWsStatus(false));
+  LiveFeed.connect();
+
+  // Refresh on a schedule
+  setInterval(refreshAll, 30000);
+})();
+
+// ── DATA LOADING ─────────────────────────────────────────────────
+
+async function refreshAll() {
+  await Promise.all([loadRisk(), loadPositions(), loadTrades(), loadHealth()]);
+}
+
+async function loadRisk() {
+  try {
+    const d = await API.getRisk();
+    if (!d) return;
+
+    const pnl   = parseFloat(d.daily_pnl || 0);
+    const limit = parseFloat(d.max_daily_loss || 500);
+    const pct   = Math.min(100, Math.abs(pnl) / limit * 100).toFixed(0);
+
+    el("metric-pnl").textContent     = fmt(pnl);
+    el("metric-pnl").className       = "card-value " + (pnl >= 0 ? "green" : "red");
+    el("metric-pnl-sub").textContent = `${d.win_count || 0}W / ${d.loss_count || 0}L today`;
+    el("metric-open").textContent    = d.open_positions ?? "—";
+    el("metric-count").textContent   = d.daily_trade_count ?? "—";
+    const total = (d.win_count || 0) + (d.loss_count || 0);
+    el("metric-winrate").textContent = total > 0 ? `${(d.win_count/total*100).toFixed(0)}% win rate` : "no closed trades";
+    el("metric-limit").textContent   = `${pct}%`;
+    el("metric-limit").className     = "card-value " + (pct > 80 ? "red" : pct > 50 ? "amber" : "green");
+    el("metric-limit-sub").textContent = `$${Math.abs(pnl).toFixed(0)} of $${limit}`;
+
+    const tog = el("trading-toggle");
+    tog.checked = d.trading_enabled;
+    el("trading-label").textContent = d.trading_enabled ? "Trading Enabled" : "Trading Paused";
+  } catch(e) { console.error("loadRisk:", e); }
+}
+
+async function loadPositions() {
+  try {
+    const d = await API.getPositions();
+    const body = el("positions-body");
+    if (!d || !d.positions?.length) {
+      body.innerHTML = '<div class="empty">No open positions</div>';
+      return;
+    }
+    body.innerHTML = `<table><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Fill</th><th>P&L</th><th>Stop</th><th></th></tr></thead><tbody>
+      ${d.positions.map(p => `<tr>
+        <td><strong style="color:var(--white)">${p.symbol}</strong></td>
+        <td><span class="badge-${p.side?.toLowerCase()}">${p.side}</span></td>
+        <td>${p.quantity}</td>
+        <td class="mono">$${parseFloat(p.fill_price||0).toFixed(2)}</td>
+        <td class="mono" style="color:${parseFloat(p.unrealized_pnl||0)>=0?'var(--green)':'var(--red)'}">
+          ${fmt(p.unrealized_pnl)}</td>
+        <td class="mono">$${parseFloat(p.stop_loss_price||0).toFixed(2)}</td>
+        <td><button class="btn btn-danger" onclick="confirmClose('${p.trade_id}','${p.symbol}')"
+            style="font-size:.55rem;padding:.3rem .6rem">Close</button></td>
+      </tr>`).join("")}
+    </tbody></table>`;
+  } catch(e) { console.error("loadPositions:", e); }
+}
+
+async function loadTrades() {
+  try {
+    const d = await API.getTrades(7);
+    const body = el("trades-body");
+    if (!d?.trades?.length) {
+      body.innerHTML = '<tr><td colspan="10" class="empty">No trades in last 7 days</td></tr>';
+      return;
+    }
+    body.innerHTML = d.trades.map(t => {
+      const pnl = parseFloat(t.pnl_usd || 0);
+      const statusClass = t.status === "OPEN" ? "badge-open" : t.status === "CLOSED" ? "badge-closed" : "badge-reject";
+      return `<tr>
+        <td class="mono" style="font-size:.65rem">${t.trade_id?.split("_").slice(-3).join("_") || t.trade_id}</td>
+        <td><strong style="color:var(--white)">${t.symbol}</strong></td>
+        <td><span class="badge-${t.side?.toLowerCase()}">${t.side}</span></td>
+        <td>${t.quantity}</td>
+        <td class="mono">$${parseFloat(t.fill_price||0).toFixed(2)}</td>
+        <td class="mono">${t.close_price ? "$"+parseFloat(t.close_price).toFixed(2) : "—"}</td>
+        <td class="mono" style="color:${pnl>=0?'var(--green)':'var(--red)'}">
+          ${t.status==="CLOSED" ? fmt(pnl) : "—"}</td>
+        <td class="mono" style="font-size:.65rem">${t.exit_reason || "—"}</td>
+        <td><span class="badge ${statusClass}">${t.status}</span></td>
+        <td>${t.status==="OPEN"?`<button class="btn btn-danger" onclick="confirmClose('${t.trade_id}','${t.symbol}')"
+            style="font-size:.55rem;padding:.3rem .6rem">Close</button>`:"—"}</td>
+      </tr>`;
+    }).join("");
+  } catch(e) { console.error("loadTrades:", e); }
+}
+
+async function loadHealth() {
+  try {
+    const d = await API.getHealth();
+    const ib = d?.ib_connected;
+    el("ib-dot").className = "status-dot " + (ib ? "ok" : "err");
+    el("ib-label").textContent = ib ? "IB Connected" : "IB Disconnected";
+    el("health-body").innerHTML = `
+      <div>Orchestrator &nbsp;<span style="color:var(--green)">● ok</span></div>
+      <div>CP Gateway &nbsp;&nbsp;<span style="color:${d?.cp_gateway==='authenticated'?'var(--green)':'var(--red)'}">● ${d?.cp_gateway||'—'}</span></div>
+      <div>IB Session &nbsp;&nbsp;<span style="color:${ib?'var(--green)':'var(--red)'}">● ${ib?'connected':'disconnected'}</span></div>
+    `;
+  } catch(e) {
+    el("health-body").innerHTML = `<div style="color:var(--red)">Dashboard API unreachable</div>`;
+  }
+}
+
+// ── WEBSOCKET HANDLERS ───────────────────────────────────────────
+
+function onPriceUpdate(data) {
+  // Find the row for this trade and update P&L cell live
+  const rows = document.querySelectorAll("#positions-body tbody tr");
+  rows.forEach(row => {
+    if (row.textContent.includes(data.trade_id?.split("_").slice(-3).join("_"))) {
+      const pnlCell = row.querySelectorAll("td")[4];
+      if (pnlCell) {
+        const pnl = parseFloat(data.unrealized_pnl || 0);
+        pnlCell.textContent = fmt(pnl);
+        pnlCell.style.color = pnl >= 0 ? "var(--green)" : "var(--red)";
+      }
+    }
+  });
+}
+
+function onTradeStateChange(data) {
+  toast(`${data.trade_id}: ${data.from_state} → ${data.to_state}`, "ok");
+  setTimeout(refreshAll, 1000);
+}
+
+// ── ACTIONS ──────────────────────────────────────────────────────
+
+async function toggleTrading(enabled) {
+  try {
+    if (enabled) { await API.resumeTrading(); toast("Trading resumed", "ok"); }
+    else          { await API.pauseTrading();  toast("Trading paused",  "ok"); }
+    el("trading-label").textContent = enabled ? "Trading Enabled" : "Trading Paused";
+  } catch(e) { toast("Action failed", "err"); }
+}
+
+function confirmCloseAll() {
+  showModal(
+    `<p style="color:var(--white);margin-bottom:.8rem">Close ALL open positions?</p>
+     <p style="font-size:.8rem;color:var(--muted)">This will immediately market-close every open position and disable trading.</p>`,
+    async () => {
+      try {
+        const r = await API.closeAll();
+        toast(`Closed ${r.closed?.length || 0} position(s)`, "ok");
+        await refreshAll();
+      } catch(e) { toast("Close all failed", "err"); }
+    }
+  );
+}
+
+function confirmClose(tradeId, symbol) {
+  showModal(
+    `<p style="color:var(--white)">Close position: <strong>${symbol}</strong>?</p>`,
+    async () => {
+      try {
+        await API.closePosition(tradeId);
+        toast(`${symbol} position closed`, "ok");
+        await refreshAll();
+      } catch(e) { toast("Close failed", "err"); }
+    }
+  );
+}
+
+function openNotifModal() {
+  showModal(
+    `<p style="color:var(--white);margin-bottom:1rem">Notification Settings</p>
+     <label style="display:flex;align-items:center;gap:.8rem;margin-bottom:.8rem;font-size:.82rem">
+       <input type="checkbox" id="notif-enabled" checked/> Enable SMS alerts
+     </label>
+     <div style="font-size:.78rem;color:var(--muted)">Configure phone number in SETUP.md → Step 3</div>`,
+    async () => {
+      const enabled = el("notif-enabled").checked;
+      await API.updateNotifications({ enabled });
+      toast("Notification preferences saved", "ok");
+    }
+  );
+}
+
+function openRiskModal() {
+  showModal(
+    `<p style="color:var(--white);margin-bottom:1rem">Risk Parameters</p>
+     <label style="display:block;margin-bottom:.8rem;font-size:.78rem;color:var(--muted)">
+       Daily Loss Limit (USD)<br/>
+       <input id="risk-loss" type="number" placeholder="500"
+         style="margin-top:.3rem;background:var(--dark);border:1px solid var(--border);color:var(--white);padding:.4rem .6rem;font-family:'DM Mono',monospace;font-size:.8rem;width:100%"/>
+     </label>
+     <label style="display:block;font-size:.78rem;color:var(--muted)">
+       Max Position Size (contracts/shares)<br/>
+       <input id="risk-pos" type="number" placeholder="10"
+         style="margin-top:.3rem;background:var(--dark);border:1px solid var(--border);color:var(--white);padding:.4rem .6rem;font-family:'DM Mono',monospace;font-size:.8rem;width:100%"/>
+     </label>`,
+    async () => {
+      const params = {};
+      const loss = el("risk-loss").value;
+      const pos  = el("risk-pos").value;
+      if (loss) params.max_daily_loss_usd = parseFloat(loss);
+      if (pos)  params.max_position_size  = parseInt(pos);
+      if (Object.keys(params).length) {
+        await API.setRiskParameters(params);
+        toast("Risk parameters updated", "ok");
+      }
+    }
+  );
+}
+
+// ── HELPERS ──────────────────────────────────────────────────────
+
+function el(id) { return document.getElementById(id); }
+function fmt(v)  { const n=parseFloat(v||0); return (n>=0?"+":"")+n.toFixed(2); }
+
+function setWsStatus(connected) {
+  const dot   = el("ws-dot");
+  const label = el("ws-label");
+  dot.className   = "live-dot " + (connected ? "live" : "");
+  label.textContent = connected ? "Live" : "Disconnected";
+}
+
+let _toastTimer;
+function toast(msg, type = "") {
+  const t = el("toast");
+  t.textContent  = msg;
+  t.className    = "show " + type;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { t.className = ""; }, 3000);
+}
+
+let _modalCallback = null;
+function showModal(html, onConfirm) {
+  el("modal-content").innerHTML = html;
+  _modalCallback = onConfirm;
+  el("modal-overlay").style.display = "flex";
+}
+function closeModal() { el("modal-overlay").style.display = "none"; }
+el("modal-confirm").onclick = async () => {
+  closeModal();
+  if (_modalCallback) await _modalCallback();
+};
+el("modal-overlay").onclick = (e) => { if (e.target === el("modal-overlay")) closeModal(); };
+</script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+{
+  "Comment": "Trade Engine — Express Workflow (nested monitoring loop, chains every 5min)",
+  "StartAt": "CheckPrice",
+  "States": {
+
+    "CheckPrice": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:trade-engine-check-price",
+      "Parameters": {
+        "trade_id.$": "$.trade_id",
+        "symbol.$": "$.symbol",
+        "stop_loss_price.$": "$.stop_loss_price",
+        "take_profit_price.$": "$.take_profit_price",
+        "fill_price.$": "$.fill_price",
+        "side.$": "$.side"
+      },
+      "ResultPath": "$.price_result",
+      "Retry": [{ "ErrorEquals": ["Lambda.ServiceException"], "IntervalSeconds": 1, "MaxAttempts": 2 }],
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "ExitTimeout", "ResultPath": "$.error" }],
+      "Next": "EvaluateConditions"
+    },
+
+    "EvaluateConditions": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.price_result.stop_hit",
+          "BooleanEquals": true,
+          "Next": "ExitStopHit"
+        },
+        {
+          "Variable": "$.price_result.tp_hit",
+          "BooleanEquals": true,
+          "Next": "ExitTpHit"
+        },
+        {
+          "Variable": "$.price_result.timeout",
+          "BooleanEquals": true,
+          "Next": "ExitTimeout"
+        },
+        {
+          "Variable": "$.price_result.max_loss_hit",
+          "BooleanEquals": true,
+          "Next": "ExitMaxLoss"
+        },
+        {
+          "Variable": "$.price_result.should_chain",
+          "BooleanEquals": true,
+          "Next": "ChainExecution"
+        }
+      ],
+      "Default": "WaitBeforeNextCheck"
+    },
+
+    "WaitBeforeNextCheck": {
+      "Type": "Wait",
+      "Seconds": 5,
+      "Next": "CheckPrice"
+    },
+
+    "ChainExecution": {
+      "Comment": "Near 5-min Express limit — start fresh execution with same context",
+      "Type": "Task",
+      "Resource": "arn:aws:states:::states:startExecution",
+      "Parameters": {
+        "StateMachineArn": "arn:aws:states:${AWS_REGION}:${AWS_ACCOUNT_ID}:stateMachine:trade-engine-monitoring-loop",
+        "Input": {
+          "trade_id.$": "$.trade_id",
+          "symbol.$": "$.symbol",
+          "side.$": "$.side",
+          "quantity.$": "$.quantity",
+          "fill_price.$": "$.fill_price",
+          "stop_loss_price.$": "$.stop_loss_price",
+          "take_profit_price.$": "$.take_profit_price",
+          "strategy_id.$": "$.strategy_id",
+          "chain_count.$": "States.MathAdd($.chain_count, 1)"
+        }
+      },
+      "Next": "ExitChained"
+    },
+
+    "ExitChained": {
+      "Type": "Succeed"
+    },
+
+    "ExitStopHit": {
+      "Type": "Pass",
+      "Parameters": {
+        "exit_reason": "STOP_HIT",
+        "exit_price.$": "$.price_result.current_price"
+      },
+      "End": true
+    },
+
+    "ExitTpHit": {
+      "Type": "Pass",
+      "Parameters": {
+        "exit_reason": "TP_HIT",
+        "exit_price.$": "$.price_result.current_price"
+      },
+      "End": true
+    },
+
+    "ExitTimeout": {
+      "Type": "Pass",
+      "Parameters": {
+        "exit_reason": "TIMEOUT",
+        "exit_price.$": "$.price_result.current_price"
+      },
+      "End": true
+    },
+
+    "ExitMaxLoss": {
+      "Type": "Pass",
+      "Parameters": {
+        "exit_reason": "MAX_LOSS_HIT",
+        "exit_price.$": "$.price_result.current_price"
+      },
+      "End": true
+    }
+
+  }
+}
