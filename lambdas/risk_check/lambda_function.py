@@ -7,6 +7,10 @@ Fixes applied:
   - Market hours now uses zoneinfo with America/New_York for correct DST handling.
     Old code used a fixed UTC range (13:00-21:00) that allowed pre/after-hours trades.
   - Also checks weekends.
+  - Position count now covers all in-flight statuses (PENDING, PENDING_FILL, FILLED,
+    OPEN) instead of only OPEN. Previously, a trade was invisible to the count check
+    from signal receipt until set_stop completed (~seconds), allowing simultaneous
+    signals to both pass max_position_size enforcement before either became OPEN.
 """
 import os
 import boto3
@@ -88,17 +92,24 @@ def handler(event, context):
     except Exception as e:
         logger.warning(f"Could not read daily P&L: {e}")
 
-    # --- 5. Open position count ---
+    # --- 5. In-flight position count ---
+    # Count trades in ANY non-terminal status. Querying only "OPEN" misses trades
+    # that are between signal receipt and set_stop completion (PENDING →
+    # PENDING_FILL → FILLED → OPEN). Two simultaneous signals would both pass
+    # this check before either reaches OPEN, silently exceeding max_position_size.
+    IN_FLIGHT_STATUSES = ["PENDING", "PENDING_FILL", "FILLED", "OPEN"]
     try:
-        result     = trades_table.query(
-            IndexName="StatusIndex",
-            KeyConditionExpression="status = :s",
-            ExpressionAttributeValues={":s": "OPEN"},
-            Select="COUNT",
-        )
-        open_count = result.get("Count", 0)
-        if open_count >= max_position:
-            return reject(trade_id, f"Max open positions reached: {open_count}/{max_position}")
+        in_flight_count = 0
+        for status_val in IN_FLIGHT_STATUSES:
+            result = trades_table.query(
+                IndexName="StatusIndex",
+                KeyConditionExpression="status = :s",
+                ExpressionAttributeValues={":s": status_val},
+                Select="COUNT",
+            )
+            in_flight_count += result.get("Count", 0)
+        if in_flight_count >= max_position:
+            return reject(trade_id, f"Max in-flight positions reached: {in_flight_count}/{max_position}")
     except Exception as e:
         logger.warning(f"Could not count open positions: {e}")
 

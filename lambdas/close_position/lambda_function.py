@@ -6,9 +6,16 @@ Returns { "close_price": ..., "exit_reason": ... }
 Fixes applied:
   - secType changed from STK to FUT for MES futures contract resolution.
   - GTC stop order is now cancelled at IB before the market close order is sent
-    for any exit that isn't STOP_HIT. Without this, the standing stop order
-    remains live at IB indefinitely and can fill on a subsequent trading day,
-    opening an unwanted position.
+    for ALL exit reasons (including STOP_HIT). The previous code skipped the
+    cancel for STOP_HIT, assuming IB had already executed the stop. But
+    check_price detects stop_hit via a software price comparison, not an IB
+    execution confirmation. By the time close_position runs, the GTC stop may
+    not have fired yet. Sending a MKT close without first cancelling the GTC
+    stop causes a reverse position in two scenarios:
+      (a) Stop fired already   → MKT close hits flat account → opens new short
+      (b) Stop not fired yet   → MKT close flattens, then stop fires → opens new short
+    The cancel call swallows 404s (order already gone) so it is safe for both
+    cases. Always cancel first, then close.
 """
 import os, boto3, httpx, logging
 from datetime import datetime, timezone
@@ -40,13 +47,10 @@ def handler(event, context):
     account_id = _get_account_id()
     conid      = _get_conid(symbol)
 
-    # FIX: Cancel the GTC stop order before sending the market close.
-    # For STOP_HIT exits the stop triggered naturally at IB so there is no
-    # open order to cancel. For every other exit reason (TP_HIT, TIMEOUT,
-    # EMERGENCY, MANUAL) the stop is still resting GTC and must be cancelled,
-    # otherwise IB will fill it on a future trading day opening a ghost position.
-    if exit_reason != "STOP_HIT":
-        _cancel_stop_order(trade_id, account_id)
+    # Always cancel the GTC stop order before sending the market close.
+    # _cancel_stop_order swallows 404s, so it is safe whether or not IB has
+    # already executed the stop. See module docstring for full rationale.
+    _cancel_stop_order(trade_id, account_id)
 
     # Market close
     resp = httpx.post(
