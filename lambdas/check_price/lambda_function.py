@@ -7,14 +7,18 @@ Fixes applied:
   - secType changed from STK to FUT; front-month MES contract is resolved correctly.
   - execution_start timezone handling: explicitly strips trailing 'Z' before fromisoformat()
     so it works on all Python 3.x runtimes (fromisoformat doesn't accept 'Z' pre-3.11).
-  - should_chain now uses proper timezone-aware subtraction with no double-apply risk.
+  - should_chain uses proper timezone-aware subtraction with no double-apply risk.
+  - max_loss_hit removed from return value. Cross-trade daily-loss enforcement is owned
+    exclusively by portfolio_risk Lambda (60s schedule, reads real DynamoDB P&L, calls
+    SF stop_execution directly). Returning a hardcoded False from here was dead code that
+    also kept the ExitMaxLoss branch in the monitoring loop permanently unreachable.
 """
 import json
 import os
 import boto3
 import httpx
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -58,7 +62,7 @@ def handler(event, context):
         logger.error(f"Price fetch failed for {symbol}: {e}")
         return {
             "stop_hit": False, "tp_hit": False, "timeout": False,
-            "max_loss_hit": False, "should_chain": False,
+            "should_chain": False,
             "current_price": 0, "error": str(e)
         }
 
@@ -87,43 +91,41 @@ def handler(event, context):
     # Publish to EventBridge for dashboard live feed
     try:
         events.put_events(Entries=[{
-            "Source":      "trade-engine.check-price",
-            "DetailType":  "PriceUpdate",
+            "Source":       "trade-engine.check-price",
+            "DetailType":   "PriceUpdate",
             "EventBusName": EVENT_BUS_NAME,
-            "Detail":      json.dumps({
-                "trade_id":         trade_id,
-                "symbol":           symbol,
-                "current_price":    current_price,
-                "unrealized_pnl":   unrealized_pnl,
-                "stop_loss_price":  stop_loss,
+            "Detail":       json.dumps({
+                "trade_id":          trade_id,
+                "symbol":            symbol,
+                "current_price":     current_price,
+                "unrealized_pnl":    unrealized_pnl,
+                "stop_loss_price":   stop_loss,
                 "take_profit_price": take_profit,
-                "timestamp":        now.isoformat(),
+                "timestamp":         now.isoformat(),
             }),
         }])
     except Exception as e:
         logger.warning(f"EventBridge publish failed: {e}")
 
-    # Absolute trade timeout check (uses fill_time, unaffected by chain boundaries)
-    fill_time_str  = event.get("fill_time", now.isoformat())
-    trade_start    = _parse_aws_dt(fill_time_str)
-    elapsed_trade  = (now - trade_start).total_seconds() / 60
-    timeout        = elapsed_trade >= MAX_TRADE_DURATION_MINUTES
+    # Absolute trade timeout (uses fill_time, unaffected by chain boundaries)
+    fill_time_str = event.get("fill_time", now.isoformat())
+    trade_start   = _parse_aws_dt(fill_time_str)
+    elapsed_trade = (now - trade_start).total_seconds() / 60
+    timeout       = elapsed_trade >= MAX_TRADE_DURATION_MINUTES
 
-    # Chain detection: check how long THIS Express execution has been running.
+    # Chain detection: how long has THIS Express execution been running?
     # $$.Execution.StartTime is passed in as execution_start from the ASL.
-    # FIX: use _parse_aws_dt() so the 'Z' suffix doesn't break fromisoformat().
-    exec_start_str      = event.get("execution_start", now.isoformat())
-    exec_start          = _parse_aws_dt(exec_start_str)
-    elapsed_in_exec     = (now - exec_start).total_seconds()
-    should_chain        = elapsed_in_exec >= CHAIN_AT_SECONDS
+    exec_start_str  = event.get("execution_start", now.isoformat())
+    exec_start      = _parse_aws_dt(exec_start_str)
+    elapsed_in_exec = (now - exec_start).total_seconds()
+    should_chain    = elapsed_in_exec >= CHAIN_AT_SECONDS
 
     result = {
-        "stop_hit":      stop_hit,
-        "tp_hit":        tp_hit,
-        "timeout":       timeout,
-        "max_loss_hit":  False,   # portfolio_risk Lambda handles cross-trade limits
-        "should_chain":  should_chain and not stop_hit and not tp_hit and not timeout,
-        "current_price": current_price,
+        "stop_hit":       stop_hit,
+        "tp_hit":         tp_hit,
+        "timeout":        timeout,
+        "should_chain":   should_chain and not stop_hit and not tp_hit and not timeout,
+        "current_price":  current_price,
         "unrealized_pnl": unrealized_pnl,
     }
 
@@ -133,7 +135,7 @@ def handler(event, context):
 
 def get_conid(symbol: str) -> str:
     """Resolve front-month MES futures conid from IB CP Gateway.
-    FIX: secType=FUT (was STK) — MES is a CME futures contract, not a stock.
+    secType=FUT — MES is a CME futures contract, not a stock.
     IB returns contracts with the nearest expiry first; index 0 = front-month.
     """
     resp = httpx.get(
@@ -145,7 +147,6 @@ def get_conid(symbol: str) -> str:
     contracts = resp.json()
     if not contracts:
         raise ValueError(f"No futures contract found for {symbol}")
-    # Front-month is always index 0 (IB sorts nearest expiry first)
     return str(contracts[0]["conid"])
 
 

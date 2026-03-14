@@ -1,29 +1,43 @@
 {
-  "Comment": "Trade Engine - Express Workflow (nested monitoring loop). Exits with SHOULD_CHAIN near the 5-min limit so the parent Standard Workflow restarts it — preventing the double-close race that occurred when chaining was done fire-and-forget from inside this workflow.",
+  "Comment": "Trade Engine - Express Workflow (nested monitoring loop). Exits with SHOULD_CHAIN near the 5-min limit so the parent Standard Workflow restarts it \u2014 preventing the double-close race. Cross-trade max-loss enforcement is handled exclusively by the portfolio_risk Lambda (60s schedule) which calls SF stop_execution directly; ExitMaxLoss was dead code.",
   "StartAt": "CheckPrice",
   "States": {
-
     "CheckPrice": {
       "Type": "Task",
       "Resource": "${CheckPriceFunctionArn}",
       "Parameters": {
-        "trade_id.$":        "$.trade_id",
-        "symbol.$":          "$.symbol",
+        "trade_id.$": "$.trade_id",
+        "symbol.$": "$.symbol",
         "stop_loss_price.$": "$.stop_loss_price",
         "take_profit_price.$": "$.take_profit_price",
-        "fill_price.$":      "$.fill_price",
-        "fill_time.$":       "$.fill_time",
-        "side.$":            "$.side",
-        "quantity.$":        "$.quantity",
-        "chain_count.$":     "$.chain_count",
+        "fill_price.$": "$.fill_price",
+        "fill_time.$": "$.fill_time",
+        "side.$": "$.side",
+        "quantity.$": "$.quantity",
+        "chain_count.$": "$.chain_count",
         "execution_start.$": "$$.Execution.StartTime"
       },
       "ResultPath": "$.price_result",
-      "Retry": [{ "ErrorEquals": ["Lambda.ServiceException"], "IntervalSeconds": 1, "MaxAttempts": 2 }],
-      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "ExitError", "ResultPath": "$.error" }],
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "ExitError",
+          "ResultPath": "$.error"
+        }
+      ],
       "Next": "EvaluateConditions"
     },
-
     "EvaluateConditions": {
       "Type": "Choice",
       "Choices": [
@@ -43,11 +57,6 @@
           "Next": "ExitTimeout"
         },
         {
-          "Variable": "$.price_result.max_loss_hit",
-          "BooleanEquals": true,
-          "Next": "ExitMaxLoss"
-        },
-        {
           "Variable": "$.price_result.should_chain",
           "BooleanEquals": true,
           "Next": "ExitShouldChain"
@@ -55,68 +64,52 @@
       ],
       "Default": "WaitBeforeNextCheck"
     },
-
     "WaitBeforeNextCheck": {
       "Type": "Wait",
       "Seconds": 5,
       "Next": "CheckPrice"
     },
-
     "ExitShouldChain": {
-      "Comment": "Near the 5-min Express limit. Signal the parent Standard Workflow to restart this monitoring loop. The parent uses startExecution.sync:2 and loops back on this exit_reason — only ONE monitoring loop is ever active at a time, eliminating the previous double-close race.",
+      "Comment": "Near the 5-min Express limit. Signal the parent Standard Workflow to restart this monitoring loop. The parent uses startExecution.sync:2 and loops back on this exit_reason \u2014 only ONE monitoring loop is ever active at a time, eliminating the previous double-close race.",
       "Type": "Pass",
       "Parameters": {
         "exit_reason": "SHOULD_CHAIN"
       },
       "End": true
     },
-
     "ExitStopHit": {
       "Type": "Pass",
       "Parameters": {
-        "exit_reason":  "STOP_HIT",
+        "exit_reason": "STOP_HIT",
         "exit_price.$": "$.price_result.current_price"
       },
       "End": true
     },
-
     "ExitTpHit": {
       "Type": "Pass",
       "Parameters": {
-        "exit_reason":  "TP_HIT",
+        "exit_reason": "TP_HIT",
         "exit_price.$": "$.price_result.current_price"
       },
       "End": true
     },
-
     "ExitTimeout": {
-      "Comment": "Trade duration exceeded MAX_TRADE_DURATION_MINUTES — exit cleanly.",
+      "Comment": "Trade duration exceeded MAX_TRADE_DURATION_MINUTES \u2014 exit cleanly.",
       "Type": "Pass",
       "Parameters": {
         "exit_reason": "TIMEOUT",
-        "exit_price":  0
+        "exit_price": 0
       },
       "End": true
     },
-
-    "ExitMaxLoss": {
-      "Type": "Pass",
-      "Parameters": {
-        "exit_reason":  "MAX_LOSS_HIT",
-        "exit_price.$": "$.price_result.current_price"
-      },
-      "End": true
-    },
-
     "ExitError": {
-      "Comment": "Catch-all for unexpected Lambda or runtime errors. exit_price=0 because $.price_result may not exist on this path — avoids the States.Runtime error that the old ExitTimeout state caused when reached via Catch.",
+      "Comment": "Catch-all for unexpected Lambda or runtime errors. exit_price=0 because $.price_result may not exist on this path \u2014 avoids the States.Runtime error that the old ExitTimeout state caused when reached via Catch.",
       "Type": "Pass",
       "Parameters": {
         "exit_reason": "ERROR",
-        "exit_price":  0
+        "exit_price": 0
       },
       "End": true
     }
-
   }
 }
