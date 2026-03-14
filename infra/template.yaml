@@ -779,6 +779,270 @@ Resources:
           CLOUDFRONT_DIST_ID: !GetAtt FrontendStack.Outputs.CloudFrontDistributionId
           ALB_ARN_PARAM: !Sub "/trade-engine/${AWS::StackName}/alb-arn"
 
+
+# --- CloudWatch Alarms ---
+#
+# Every alarm feeds the existing SNS topic so you get an SMS for any
+# silent failure. Alarms cover:
+#   - Lambda errors on every function that touches money or positions
+#   - Step Functions execution failures (trade lifecycle + monitoring loop)
+#   - ECS Fargate service dropping to 0 tasks unexpectedly
+#   - ALB manager Lambda errors (silent dashboard outage)
+#
+# All alarms use a 1-minute evaluation period and fire on >= 1 error
+# so you hear about the first failure, not after a 5-minute average.
+
+  # --- Lambda error alarms ---
+  # One alarm per function that has a meaningful error path. check_price
+  # and tickle are high-frequency; their threshold is 3 to avoid noise
+  # from the occasional transient AWS API blip.
+
+  AlarmSignalErrors:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub trade-engine-signal-errors-${AWS::StackName}
+      AlarmDescription: signal Lambda threw an unhandled error - NinjaTrader signals may not be reaching Step Functions
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub trade-engine-signal-${AWS::StackName}
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!GetAtt StorageStack.Outputs.SnsTopicArn]
+
+  AlarmRiskCheckErrors:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub trade-engine-risk-check-errors-${AWS::StackName}
+      AlarmDescription: risk_check Lambda error - pre-trade validation is broken, signals will be silently rejected
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub trade-engine-risk-check-${AWS::StackName}
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!GetAtt StorageStack.Outputs.SnsTopicArn]
+
+  AlarmPlaceOrderErrors:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub trade-engine-place-order-errors-${AWS::StackName}
+      AlarmDescription: place_order Lambda error - orders are not reaching Interactive Brokers
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub trade-engine-place-order-${AWS::StackName}
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!GetAtt StorageStack.Outputs.SnsTopicArn]
+
+  AlarmSetStopErrors:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub trade-engine-set-stop-errors-${AWS::StackName}
+      AlarmDescription: set_stop Lambda error - filled position has no protective stop order
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub trade-engine-set-stop-${AWS::StackName}
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!GetAtt StorageStack.Outputs.SnsTopicArn]
+
+  AlarmClosePositionErrors:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub trade-engine-close-position-errors-${AWS::StackName}
+      AlarmDescription: close_position Lambda error - position may still be open at IB
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub trade-engine-close-position-${AWS::StackName}
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!GetAtt StorageStack.Outputs.SnsTopicArn]
+
+  AlarmLogTradeErrors:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub trade-engine-log-trade-errors-${AWS::StackName}
+      AlarmDescription: log_trade Lambda error - trade record and daily P&L may be incomplete
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub trade-engine-log-trade-${AWS::StackName}
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!GetAtt StorageStack.Outputs.SnsTopicArn]
+
+  AlarmTickleErrors:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub trade-engine-tickle-errors-${AWS::StackName}
+      AlarmDescription: tickle Lambda repeated errors - CP Gateway keep-alive is failing, session will expire
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub trade-engine-tickle-${AWS::StackName}
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!GetAtt StorageStack.Outputs.SnsTopicArn]
+
+  AlarmCheckPriceErrors:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub trade-engine-check-price-errors-${AWS::StackName}
+      AlarmDescription: check_price Lambda repeated errors - monitoring loop is blind, stop/TP not being evaluated
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub trade-engine-check-price-${AWS::StackName}
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!GetAtt StorageStack.Outputs.SnsTopicArn]
+
+  AlarmAlbManagerErrors:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub trade-engine-alb-manager-errors-${AWS::StackName}
+      AlarmDescription: alb_manager Lambda error - dashboard ALB may not have been created or deleted correctly
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub trade-engine-alb-manager-${AWS::StackName}
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!GetAtt StorageStack.Outputs.SnsTopicArn]
+
+  # --- Step Functions alarms ---
+  # Fires when an execution reaches a terminal FAILED state.
+  # The monitoring loop Express WF chaining is not a failure - only actual
+  # failed executions (unhandled errors escaping all Catch blocks) are counted.
+
+  AlarmTradeLifecycleFailed:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub trade-engine-lifecycle-failed-${AWS::StackName}
+      AlarmDescription: Trade lifecycle Step Functions execution failed - a trade may have been left in an unknown state
+      Namespace: AWS/States
+      MetricName: ExecutionsFailed
+      Dimensions:
+        - Name: StateMachineArn
+          Value: !Ref TradeLifecycleStateMachine
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!GetAtt StorageStack.Outputs.SnsTopicArn]
+
+  AlarmMonitoringLoopFailed:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub trade-engine-monitoring-loop-failed-${AWS::StackName}
+      AlarmDescription: Monitoring loop Express WF failed - an open position is no longer being watched
+      Namespace: AWS/States
+      MetricName: ExecutionsFailed
+      Dimensions:
+        - Name: StateMachineArn
+          Value: !Ref MonitoringLoopStateMachine
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!GetAtt StorageStack.Outputs.SnsTopicArn]
+
+  AlarmTradeLifecycleThrottled:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub trade-engine-lifecycle-throttled-${AWS::StackName}
+      AlarmDescription: Trade lifecycle executions being throttled by Step Functions - signals are queuing, check concurrency limits
+      Namespace: AWS/States
+      MetricName: ExecutionThrottled
+      Dimensions:
+        - Name: StateMachineArn
+          Value: !Ref TradeLifecycleStateMachine
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!GetAtt StorageStack.Outputs.SnsTopicArn]
+
+  # --- ECS alarm ---
+  # Fires when the Fargate service has 0 running tasks during market hours.
+  # DesiredCount is 0 outside market hours so TreatMissingData=notBreaching
+  # means the alarm stays green overnight.
+
+  AlarmFargateTaskCount:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub trade-engine-fargate-no-tasks-${AWS::StackName}
+      AlarmDescription: Fargate dashboard service has 0 running tasks - dashboard is down
+      Namespace: AWS/ECS
+      MetricName: RunningTaskCount
+      Dimensions:
+        - Name: ClusterName
+          Value: !GetAtt ComputeStack.Outputs.EcsClusterName
+        - Name: ServiceName
+          Value: !GetAtt ComputeStack.Outputs.EcsServiceName
+      Statistic: Minimum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!GetAtt StorageStack.Outputs.SnsTopicArn]
+
 # --- Outputs ---
 
 Outputs:

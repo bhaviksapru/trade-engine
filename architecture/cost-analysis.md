@@ -283,6 +283,21 @@ Monthly total: $21.31
 
 ---
 
+## CloudWatch Alarms
+
+13 alarms covering Lambda errors, Step Functions failures, and ECS task count.
+
+```
+Alarms:            13
+Rate:              $0.10/alarm/month (standard resolution)
+Monthly cost:      $1.30
+
+Each alarm feeds the existing SNS topic - no additional SNS cost.
+```
+
+
+---
+
 ## Monthly Cost Summary
 
 | Service | Cost | Notes |
@@ -300,7 +315,8 @@ Monthly total: $21.31
 | API Gateway | $0.00 | Free tier |
 | EventBridge | $0.00 | Free tier |
 | S3 + CloudFront | $0.02 | Tiny static site |
-| **Total** | **~$30.06** | |
+| CloudWatch Alarms | $1.30 | 13 alarms, Lambda + SF + ECS |
+| **Total** | **~$31.36** | |
 
 ---
 
@@ -309,8 +325,8 @@ Monthly total: $21.31
 | | Monthly | Annual |
 |---|---|---|
 | NinjaTrader execution licence | ~$100 | ~$1,200 |
-| trade-engine (AWS, 3-AZ HA) | ~$30 | ~$360 |
-| **Saving** | **~$70** | **~$840** |
+| trade-engine (AWS, 3-AZ HA) | ~$31 | ~$372 |
+| **Saving** | **~$69** | **~$828** |
 
 Break-even: infrastructure pays for itself in under 3 weeks of trading.
 
