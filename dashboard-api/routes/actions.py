@@ -216,12 +216,25 @@ class NotificationPrefs(BaseModel):
 
 @router.post("/notifications/update")
 async def update_notifications(prefs: NotificationPrefs):
-    item = {"pk": "notification_preferences", "enabled": prefs.enabled}
-    if prefs.phone:
-        item["phone"] = prefs.phone
-    if prefs.events:
-        item["events"] = prefs.events
-    config_table.put_item(Item=item)
+    # FIX: use update_item instead of put_item. put_item replaces the entire
+    # DynamoDB item — a call with only {"enabled": true} and no events dict
+    # silently wipes all saved event preferences. update_item writes only the
+    # fields that were actually provided in the request.
+    update_expr = "SET enabled = :enabled"
+    attr_vals   = {":enabled": prefs.enabled}
+
+    if prefs.phone is not None:
+        update_expr += ", phone = :phone"
+        attr_vals[":phone"] = prefs.phone
+    if prefs.events is not None:
+        update_expr += ", events = :events"
+        attr_vals[":events"] = prefs.events
+
+    config_table.update_item(
+        Key={"pk": "notification_preferences"},
+        UpdateExpression=update_expr,
+        ExpressionAttributeValues=attr_vals,
+    )
     return {"message": "Notification preferences updated", "enabled": prefs.enabled}
 
 
