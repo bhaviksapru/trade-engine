@@ -255,7 +255,19 @@ aws cloudfront create-invalidation \
 
 ## Step 7 - Configure NinjaTrader
 
-Get your API key:
+**7a — Set the Windows environment variable for the API key**
+
+The API key is never stored in source code. It is read at runtime from a Windows
+environment variable (`TRADE_ENGINE_API_KEY`). Set it once on your desktop:
+
+1. Win + S → search **"Edit the system environment variables"**
+2. Click **Environment Variables**
+3. Under **User variables** → **New**
+   - Variable name: `TRADE_ENGINE_API_KEY`
+   - Variable value: *(output of the command below)*
+4. Click OK → **restart NinjaTrader** for the change to take effect
+
+Retrieve the key value:
 ```bash
 API_KEY_SECRET=$(aws cloudformation describe-stacks \
   --stack-name trade-engine \
@@ -269,12 +281,19 @@ aws secretsmanager get-secret-value \
   --output text | python3 -c "import sys,json; print(json.load(sys.stdin)['api_key'])"
 ```
 
-Update `ninjatrader/OrchestratorClient.cs` lines 18–20:
+> **Never paste the key directly into `OrchestratorClient.cs` or commit it to git.**
+> The env var approach means rotating the key (every 90 days) only requires updating
+> the env var and restarting NinjaTrader — no code changes, no recompile.
+
+**7b — Set the API Gateway URL in `OrchestratorClient.cs`**
+
+Update the `BaseUrl` constant on line 21 (the only line you need to edit in the file):
 ```csharp
 private const string BaseUrl = "PASTE_ApiGatewayUrl_HERE";
 // e.g. "https://abc123.execute-api.us-east-2.amazonaws.com/prod"
-private const string ApiKey = "PASTE_API_KEY_HERE";
 ```
+
+**7c — Copy and compile**
 
 Copy both `.cs` files to NinjaTrader:
 - Windows: `Documents\NinjaTrader 8\bin\Custom\`
@@ -407,18 +426,22 @@ aws logs tail /aws/states/trade-engine-trade-lifecycle-trade-engine --follow
 ### Every 90 Days - Rotate API Key
 
 ```bash
-# Generate a new key directly in Secrets Manager
-aws secretsmanager rotate-secret \
-  --secret-id trade-engine/api-key-trade-engine
-
-# OR manually:
+# Generate and store a new key in Secrets Manager
 NEW_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 aws secretsmanager update-secret \
   --secret-id trade-engine/api-key-trade-engine \
   --secret-string "{\"api_key\":\"$NEW_KEY\"}"
 
-# Update OrchestratorClient.cs line 20 with new key → recompile in NinjaTrader
+# Print it so you can update the Windows env var
+echo "New key: $NEW_KEY"
 ```
+
+Then on your Windows desktop:
+1. Win + S → **"Edit the system environment variables"** → Environment Variables
+2. Under **User variables**, find `TRADE_ENGINE_API_KEY` → **Edit** → paste the new key
+3. Click OK → **restart NinjaTrader**
+
+> No code changes or recompile needed — the key is read from the env var at startup.
 
 ### If Your Home IP Changes
 
@@ -447,7 +470,7 @@ sam delete --stack-name trade-engine --region us-east-2
 
 | Symptom | Likely Cause | Fix |
 |---|---|---|
-| Signal returns 403 | Wrong API key or IP mismatch | Check `OrchestratorClient.cs` key; verify `YourDesktopIp` param |
+| Signal returns 403 | Wrong API key or IP mismatch | Check `TRADE_ENGINE_API_KEY` env var matches Secrets Manager value; verify `YourDesktopIp` param; restart NinjaTrader after any env var change |
 | Signal returns 401 | Authorizer Lambda error | Check `/aws/lambda/trade-engine-api-authorizer-trade-engine` logs |
 | Dashboard shows "Cannot connect" | `config.js` not updated | Re-run Step 6 |
 | Dashboard login loops | Cognito callback URL wrong | Re-run Step 4 Cognito update command |
