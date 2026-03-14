@@ -6,13 +6,11 @@ window.CONFIG = {
   // From sam deploy --guided (check stack outputs): api_gateway_url
   apiUrl: "https://XXXX.execute-api.us-east-2.amazonaws.com/prod",
 
-  // WebSocket endpoint - connects directly to the ALB (API Gateway does not
-  // support WebSocket upgrades for ALB-backed HTTP API integrations).
-  // Format: wss://<alb-dns>:8080/live
-  //   Port 8080 is the AlbHttpDirectListener defined in compute.yaml.
-  // The ALB DNS changes each day when alb_manager recreates it - update this
-  // after each market-open cycle, or add a Route53 alias for a stable name.
-  wsUrl: "wss://XXXX.elb.us-east-2.amazonaws.com:8080/live",
+  // WebSocket endpoint - use the stable CloudFront domain.
+  // CloudFront already routes /live* to the ALB (see frontend.yaml CacheBehaviors).
+  // Set this once after deploy; it never changes unless you redeploy the stack.
+  // From sam deploy --guided (check stack outputs): dashboard_url, replace https:// with wss://
+  wsUrl: "wss://XXXX.cloudfront.net/live",
 
   // From sam deploy --guided (check stack outputs): dashboard_url
   dashboardUrl: "https://XXXX.cloudfront.net",

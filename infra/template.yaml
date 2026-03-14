@@ -613,7 +613,7 @@ Resources:
 
 # --- Market Open / Close Schedulers ---
 # CP Gateway scale-up/down is handled by ASG ScheduledActions in compute.yaml.
-# These rules manage Fargate scale-up/down and the tickle/portfolio-risk schedules.
+# These rules manage only Fargate scale-up/down and the tickle/portfolio-risk schedules.
 
   MarketOpenRole:
     Type: AWS::IAM::Role
@@ -638,9 +638,6 @@ Resources:
                 Resource:
                   - !GetAtt TickleSchedule.Arn
                   - !GetAtt PortfolioRiskSchedule.Arn
-              - Effect: Allow
-                Action: lambda:InvokeFunction
-                Resource: !GetAtt AlbManagerFunction.Arn
 
   MarketCloseRole:
     Type: AWS::IAM::Role
@@ -665,15 +662,12 @@ Resources:
                 Resource:
                   - !GetAtt TickleSchedule.Arn
                   - !GetAtt PortfolioRiskSchedule.Arn
-              - Effect: Allow
-                Action: lambda:InvokeFunction
-                Resource: !GetAtt AlbManagerFunction.Arn
 
   MarketOpenRule:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub trade-engine-market-open-${AWS::StackName}
-      Description: Start Fargate at market open. CP Gateway is scaled by ASG ScheduledAction. Adjust cron for daylight saving.
+      Description: Scale Fargate up at market open. CP Gateway is scaled by ASG ScheduledAction. Adjust cron for daylight saving.
       ScheduleExpression: !Sub "cron(${MarketOpenUtc})"
       State: ENABLED
       Targets:
@@ -681,23 +675,12 @@ Resources:
           Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ComputeStack.Outputs.EcsClusterName}"
           RoleArn: !GetAtt MarketOpenRole.Arn
           Input: !Sub '{"cluster":"${ComputeStack.Outputs.EcsClusterName}","service":"${ComputeStack.Outputs.EcsServiceName}","desiredCount":1}'
-        - Id: AlbStart
-          Arn: !GetAtt AlbManagerFunction.Arn
-          Input: '{"action":"START"}'
-
-  AlbManagerOpenPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !GetAtt AlbManagerFunction.Arn
-      Action: lambda:InvokeFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt MarketOpenRule.Arn
 
   MarketCloseRule:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub trade-engine-market-close-${AWS::StackName}
-      Description: Stop Fargate at market close. CP Gateway is scaled by ASG ScheduledAction.
+      Description: Scale Fargate down at market close. CP Gateway is scaled by ASG ScheduledAction.
       ScheduleExpression: !Sub "cron(${MarketCloseUtc})"
       State: ENABLED
       Targets:
@@ -705,82 +688,6 @@ Resources:
           Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ComputeStack.Outputs.EcsClusterName}"
           RoleArn: !GetAtt MarketCloseRole.Arn
           Input: !Sub '{"cluster":"${ComputeStack.Outputs.EcsClusterName}","service":"${ComputeStack.Outputs.EcsServiceName}","desiredCount":0}'
-        - Id: AlbStop
-          Arn: !GetAtt AlbManagerFunction.Arn
-          Input: '{"action":"STOP"}'
-
-  AlbManagerClosePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !GetAtt AlbManagerFunction.Arn
-      Action: lambda:InvokeFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt MarketCloseRule.Arn
-
-
-# --- Lambda: ALB Manager ---
-
-  AlbManagerRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Policies:
-        - PolicyName: AlbManagerPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:CreateLoadBalancer
-                  - elasticloadbalancing:DeleteLoadBalancer
-                  - elasticloadbalancing:DescribeLoadBalancers
-                  - elasticloadbalancing:CreateListener
-                  - elasticloadbalancing:DeleteListener
-                  - elasticloadbalancing:DescribeListeners
-                  - elasticloadbalancing:AddTags
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - cloudfront:GetDistribution
-                  - cloudfront:UpdateDistribution
-                Resource: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendStack.Outputs.CloudFrontDistributionId}"
-              - Effect: Allow
-                Action:
-                  - ssm:PutParameter
-                  - ssm:GetParameter
-                  - ssm:DeleteParameter
-                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/trade-engine/${AWS::StackName}/alb-arn"
-
-  AlbManagerFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub trade-engine-alb-manager-${AWS::StackName}
-      CodeUri: ../lambdas/alb_manager/
-      Handler: lambda_function.handler
-      Description: Creates and deletes the dashboard ALB at market open and close
-      # Runs outside the VPC - calls ELBv2, CloudFront, and SSM public endpoints
-      VpcConfig: !Ref AWS::NoValue
-      Role: !GetAtt AlbManagerRole.Arn
-      Timeout: 120
-      Environment:
-        Variables:
-          ALB_NAME: !Sub trade-engine-alb-${AWS::StackName}
-          PUBLIC_SUBNET_1: !GetAtt VpcStack.Outputs.PublicSubnet1
-          PUBLIC_SUBNET_2: !GetAtt VpcStack.Outputs.PublicSubnet2
-          PUBLIC_SUBNET_3: !GetAtt VpcStack.Outputs.PublicSubnet3
-          SG_ALB: !GetAtt VpcStack.Outputs.SgAlb
-          TARGET_GROUP_ARN: !GetAtt ComputeStack.Outputs.AlbTargetGroupArn
-          CLOUDFRONT_DIST_ID: !GetAtt FrontendStack.Outputs.CloudFrontDistributionId
-          ALB_ARN_PARAM: !Sub "/trade-engine/${AWS::StackName}/alb-arn"
-
 
 # --- CloudWatch Alarms ---
 #
@@ -789,7 +696,6 @@ Resources:
 #   - Lambda errors on every function that touches money or positions
 #   - Step Functions execution failures (trade lifecycle + monitoring loop)
 #   - ECS Fargate service dropping to 0 tasks unexpectedly
-#   - ALB manager Lambda errors (silent dashboard outage)
 #
 # All alarms use a 1-minute evaluation period and fire on >= 1 error
 # so you hear about the first failure, not after a 5-minute average.
@@ -939,24 +845,6 @@ Resources:
       Period: 60
       EvaluationPeriods: 3
       Threshold: 3
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      TreatMissingData: notBreaching
-      AlarmActions: [!GetAtt StorageStack.Outputs.SnsTopicArn]
-
-  AlarmAlbManagerErrors:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub trade-engine-alb-manager-errors-${AWS::StackName}
-      AlarmDescription: alb_manager Lambda error - dashboard ALB may not have been created or deleted correctly
-      Namespace: AWS/Lambda
-      MetricName: Errors
-      Dimensions:
-        - Name: FunctionName
-          Value: !Sub trade-engine-alb-manager-${AWS::StackName}
-      Statistic: Sum
-      Period: 60
-      EvaluationPeriods: 1
-      Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
       AlarmActions: [!GetAtt StorageStack.Outputs.SnsTopicArn]
