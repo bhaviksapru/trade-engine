@@ -5,6 +5,8 @@ If daily loss limit is exceeded across all strategies:
   2. Closes all open positions at market
   3. Disables trading
   4. Fires SNS alert
+
+Fix: secType changed from STK to FUT for MES futures contract resolution.
 """
 import os, json, boto3, httpx, logging
 from datetime import datetime, timezone
@@ -26,23 +28,20 @@ def handler(event, context):
     now   = datetime.now(timezone.utc)
     today = now.strftime("%Y-%m-%d")
 
-    # Load live risk parameters
     try:
-        risk_item    = config_table.get_item(Key={"pk": "risk_parameters"}).get("Item", {})
+        risk_item      = config_table.get_item(Key={"pk": "risk_parameters"}).get("Item", {})
         max_daily_loss = float(risk_item.get("max_daily_loss_usd", MAX_DAILY_LOSS_DEFAULT))
     except Exception:
         max_daily_loss = MAX_DAILY_LOSS_DEFAULT
 
-    # Get today's P&L
     try:
-        pnl_item   = config_table.get_item(Key={"pk": f"daily_pnl#{today}"}).get("Item", {})
-        daily_pnl  = float(pnl_item.get("total_pnl", 0))
+        pnl_item  = config_table.get_item(Key={"pk": f"daily_pnl#{today}"}).get("Item", {})
+        daily_pnl = float(pnl_item.get("total_pnl", 0))
     except Exception:
         daily_pnl = 0.0
 
-    # Add unrealized P&L from open positions
     try:
-        result = trades_table.query(
+        result         = trades_table.query(
             IndexName="StatusIndex",
             KeyConditionExpression="status = :s",
             ExpressionAttributeValues={":s": "OPEN"},
@@ -51,7 +50,7 @@ def handler(event, context):
         unrealized_pnl = sum(float(t.get("unrealized_pnl", 0)) for t in open_trades)
         total_pnl      = daily_pnl + unrealized_pnl
     except Exception as e:
-        logger.error(f"Failed to scan open trades: {e}")
+        logger.error(f"Failed to query open trades: {e}")
         return {"status": "error", "message": str(e)}
 
     logger.info(
@@ -68,7 +67,7 @@ def handler(event, context):
             "open_trades":    len(open_trades),
         }
 
-    # --- LIMIT BREACHED - emergency shutdown ---
+    # --- LIMIT BREACHED — emergency shutdown ---
     logger.warning(
         f"DAILY LOSS LIMIT BREACHED: ${total_pnl:.2f} (limit: ${max_daily_loss:.2f}). "
         f"Closing {len(open_trades)} open position(s)."
@@ -78,15 +77,12 @@ def handler(event, context):
     for trade in open_trades:
         trade_id = trade["trade_id"]
         try:
-            # Stop SF execution
             if trade.get("execution_arn"):
                 sf.stop_execution(
                     executionArn=trade["execution_arn"],
                     cause="PortfolioRiskLimit: daily loss limit exceeded"
                 )
-            # Market close
             _market_close(trade)
-            # Update DynamoDB
             trades_table.update_item(
                 Key={"trade_id": trade_id},
                 UpdateExpression="SET #s = :s, exit_reason = :r, close_time = :t",
@@ -101,13 +97,11 @@ def handler(event, context):
             logger.error(f"Failed to close {trade_id}: {e}")
             failed.append({"trade_id": trade_id, "error": str(e)})
 
-    # Disable trading
     config_table.put_item(Item={
         "pk": "trading_enabled", "value": False,
         "reason": "portfolio_risk_limit",
     })
 
-    # Alert
     message = (
         f"PORTFOLIO RISK LIMIT HIT\n"
         f"Total P&L: ${total_pnl:.2f} (limit: -${abs(max_daily_loss):.2f})\n"
@@ -149,10 +143,14 @@ def _get_account_id() -> str:
 
 
 def _get_conid(symbol: str) -> str:
-    r = httpx.get(f"{CP_URL}/v1/api/iserver/secdef/search",
-                  params={"symbol": symbol, "secType": "STK"}, verify=False, timeout=5)
+    """FIX: secType=FUT (was STK). Returns front-month MES futures conid."""
+    r = httpx.get(
+        f"{CP_URL}/v1/api/iserver/secdef/search",
+        params={"symbol": symbol, "secType": "FUT"},
+        verify=False, timeout=5
+    )
     r.raise_for_status()
     data = r.json()
     if not data:
-        raise ValueError(f"No conid for {symbol}")
+        raise ValueError(f"No futures contract found for {symbol}")
     return str(data[0]["conid"])

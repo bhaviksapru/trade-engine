@@ -1,6 +1,8 @@
 """
-Place Order Lambda - sends order to IB via CP Gateway, writes DynamoDB.
+Place Order Lambda - sends MES order to IB via CP Gateway, writes DynamoDB.
 Returns { "ib_order_id": "...", "conid": "..." }
+
+Fix: secType changed from STK to FUT. MES is a CME micro-futures contract.
 """
 import os, json, boto3, httpx, logging
 from datetime import datetime, timezone
@@ -9,17 +11,16 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 dynamodb     = boto3.resource("dynamodb")
-secretsm     = boto3.client("secretsmanager")
 trades_table = dynamodb.Table(os.environ["TRADES_TABLE"])
 CP_URL       = os.environ["CP_GATEWAY_URL"]
 
 
 def handler(event, context):
-    trade_id   = event["trade_id"]
-    symbol     = event["symbol"]
-    side       = event["side"]
-    quantity   = int(event["quantity"])
-    order_type = event.get("order_type", "MKT")
+    trade_id    = event["trade_id"]
+    symbol      = event["symbol"]
+    side        = event["side"]
+    quantity    = int(event["quantity"])
+    order_type  = event.get("order_type", "MKT")
     limit_price = event.get("limit_price")
 
     logger.info(f"[{trade_id}] Placing {order_type} {side} {quantity} {symbol}")
@@ -46,7 +47,6 @@ def handler(event, context):
     resp.raise_for_status()
     data = resp.json()
 
-    # CP Gateway returns a list; first item has the order ID
     ib_order_id = str(data[0].get("order_id") or data[0].get("id", "unknown"))
 
     trades_table.update_item(
@@ -71,10 +71,16 @@ def _get_account_id() -> str:
 
 
 def _get_conid(symbol: str) -> str:
-    r = httpx.get(f"{CP_URL}/v1/api/iserver/secdef/search",
-                  params={"symbol": symbol, "secType": "STK"}, verify=False, timeout=5)
+    """Resolve front-month MES futures conid.
+    FIX: secType=FUT (was STK). Returns front-month (index 0, nearest expiry).
+    """
+    r = httpx.get(
+        f"{CP_URL}/v1/api/iserver/secdef/search",
+        params={"symbol": symbol, "secType": "FUT"},
+        verify=False, timeout=5
+    )
     r.raise_for_status()
     data = r.json()
     if not data:
-        raise ValueError(f"No contract found for {symbol}")
+        raise ValueError(f"No futures contract found for {symbol}")
     return str(data[0]["conid"])

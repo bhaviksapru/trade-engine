@@ -3,6 +3,8 @@ Dead Man Lambda - emergency safety net. Runs every 5 minutes, 24/7.
 Scans DynamoDB for open positions where last_heartbeat is stale (>15min).
 If found: forcefully closes position at IB and stops the Step Functions execution.
 This is the last line of defense if all other components fail.
+
+Fix: secType changed from STK to FUT for MES futures contract resolution.
 """
 import os
 import json
@@ -14,31 +16,30 @@ from datetime import datetime, timezone, timedelta
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-dynamodb = boto3.resource("dynamodb")
+dynamodb     = boto3.resource("dynamodb")
 trades_table = dynamodb.Table(os.environ["TRADES_TABLE"])
 config_table = dynamodb.Table(os.environ["CONFIG_TABLE"])
-sf = boto3.client("stepfunctions")
-sns = boto3.client("sns")
+sf           = boto3.client("stepfunctions")
+sns          = boto3.client("sns")
 
-CP_GATEWAY_URL = os.environ["CP_GATEWAY_URL"]
-SNS_TOPIC_ARN = os.environ["SNS_TOPIC_ARN"]
+CP_GATEWAY_URL         = os.environ["CP_GATEWAY_URL"]
+SNS_TOPIC_ARN          = os.environ["SNS_TOPIC_ARN"]
 STALE_THRESHOLD_MINUTES = int(os.environ.get("STALE_THRESHOLD_MINUTES", "15"))
 
 
 def handler(event, context):
-    now = datetime.now(timezone.utc)
+    now          = datetime.now(timezone.utc)
     stale_cutoff = now - timedelta(minutes=STALE_THRESHOLD_MINUTES)
 
-    # Scan for open trades
     try:
-        result = trades_table.query(
+        result     = trades_table.query(
             IndexName="StatusIndex",
             KeyConditionExpression="status = :s",
             ExpressionAttributeValues={":s": "OPEN"},
         )
         open_trades = result.get("Items", [])
     except Exception as e:
-        logger.error(f"DynamoDB scan failed: {e}")
+        logger.error(f"DynamoDB query failed: {e}")
         return {"status": "error", "message": str(e)}
 
     if not open_trades:
@@ -51,6 +52,7 @@ def handler(event, context):
         if not heartbeat_str:
             orphaned.append(trade)
             continue
+        # FIX: handle 'Z' suffix for Python < 3.11 compatibility
         heartbeat = datetime.fromisoformat(heartbeat_str.replace("Z", "+00:00"))
         if heartbeat < stale_cutoff:
             orphaned.append(trade)
@@ -65,10 +67,10 @@ def handler(event, context):
     failed = []
 
     for trade in orphaned:
-        trade_id = trade["trade_id"]
-        symbol = trade["symbol"]
-        side = trade["side"]
-        quantity = int(trade.get("quantity", 1))
+        trade_id      = trade["trade_id"]
+        symbol        = trade["symbol"]
+        side          = trade["side"]
+        quantity      = int(trade.get("quantity", 1))
         execution_arn = trade.get("execution_arn")
 
         logger.warning(f"Closing orphaned trade: {trade_id} - {side} {quantity} {symbol}")
@@ -84,19 +86,19 @@ def handler(event, context):
             except Exception as e:
                 logger.warning(f"Could not stop execution {execution_arn}: {e}")
 
-        # 2. Place market close order at IB
+        # 2. Place emergency market close at IB
         close_side = "SELL" if side == "BUY" else "BUY"
         try:
-            account_id = get_account_id()
-            conid = get_conid(symbol)
+            account_id = _get_account_id()
+            conid      = _get_conid(symbol)
             order_resp = httpx.post(
                 f"{CP_GATEWAY_URL}/v1/api/iserver/account/{account_id}/orders",
                 json={"orders": [{
-                    "conid": int(conid),
+                    "conid":     int(conid),
                     "orderType": "MKT",
-                    "side": close_side,
-                    "quantity": quantity,
-                    "tif": "DAY",
+                    "side":      close_side,
+                    "quantity":  quantity,
+                    "tif":       "DAY",
                 }]},
                 verify=False, timeout=10
             )
@@ -122,8 +124,8 @@ def handler(event, context):
 
     # 4. Disable trading and alert
     config_table.put_item(Item={
-        "pk": "trading_enabled",
-        "value": False,
+        "pk":     "trading_enabled",
+        "value":  False,
         "reason": "dead_man_triggered",
     })
 
@@ -141,27 +143,28 @@ def handler(event, context):
         logger.error(f"SNS alert failed: {e}")
 
     return {
-        "status": "dead_man_triggered",
+        "status":   "dead_man_triggered",
         "orphaned": len(orphaned),
-        "closed": closed,
-        "failed": failed,
+        "closed":   closed,
+        "failed":   failed,
     }
 
 
-def get_account_id() -> str:
+def _get_account_id() -> str:
     resp = httpx.get(f"{CP_GATEWAY_URL}/v1/api/portfolio/accounts", verify=False, timeout=5)
     resp.raise_for_status()
     return resp.json()[0]["accountId"]
 
 
-def get_conid(symbol: str) -> str:
+def _get_conid(symbol: str) -> str:
+    """FIX: secType=FUT (was STK). Returns front-month MES futures conid."""
     resp = httpx.get(
         f"{CP_GATEWAY_URL}/v1/api/iserver/secdef/search",
-        params={"symbol": symbol, "secType": "STK"},
+        params={"symbol": symbol, "secType": "FUT"},
         verify=False, timeout=5
     )
     resp.raise_for_status()
     data = resp.json()
     if not data:
-        raise ValueError(f"No conid for {symbol}")
+        raise ValueError(f"No futures contract found for {symbol}")
     return str(data[0]["conid"])
