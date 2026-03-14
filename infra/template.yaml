@@ -60,11 +60,22 @@ Parameters:
   MarketOpenUtc:
     Type: String
     Default: "0 14 ? * MON-FRI *"
-    Description: Cron (UTC) to start EC2 + Fargate. Adjust for daylight saving.
+    Description: CloudWatch Events cron (UTC, 6-field format) for Fargate scale-up rule.
   MarketCloseUtc:
     Type: String
     Default: "30 21 ? * MON-FRI *"
-    Description: Cron (UTC) to stop EC2 + Fargate.
+    Description: CloudWatch Events cron (UTC, 6-field format) for Fargate scale-down rule.
+  # ASG cron uses standard 5-field Unix cron - incompatible with CloudWatch Events
+  # 6-field format (which uses ? wildcard and year field). Keep these in sync with
+  # MarketOpenUtc/MarketCloseUtc manually when adjusting for daylight saving.
+  MarketOpenAsgCron:
+    Type: String
+    Default: "0 14 * * 1-5"
+    Description: "Unix 5-field cron (UTC) to scale CP Gateway ASG to 1. Default: 9am ET Mon-Fri."
+  MarketCloseAsgCron:
+    Type: String
+    Default: "30 21 * * 1-5"
+    Description: "Unix 5-field cron (UTC) to scale CP Gateway ASG to 0. Default: 4:30pm ET Mon-Fri."
 
 # --- SAM Globals ---
 
@@ -164,6 +175,7 @@ Resources:
         PublicSubnet2: !GetAtt VpcStack.Outputs.PublicSubnet2
         PublicSubnet3: !GetAtt VpcStack.Outputs.PublicSubnet3
         SgCpGateway: !GetAtt VpcStack.Outputs.SgCpGateway
+        SgNlbCpGateway: !GetAtt VpcStack.Outputs.SgNlbCpGateway
         SgFargate: !GetAtt VpcStack.Outputs.SgFargate
         SgAlb: !GetAtt VpcStack.Outputs.SgAlb
         IbCredsSecretArn: !GetAtt SecretsStack.Outputs.IbCredsSecretArn
@@ -180,6 +192,8 @@ Resources:
         CognitoUserPoolId: !GetAtt CognitoStack.Outputs.UserPoolId
         CognitoClientId: !GetAtt CognitoStack.Outputs.UserPoolClientId
         AllowedGoogleEmail: !Ref AllowedGoogleEmail
+        MarketOpenAsgCron: !Ref MarketOpenAsgCron
+        MarketCloseAsgCron: !Ref MarketCloseAsgCron
       Tags:
         - Key: project
           Value: trade-engine
@@ -598,6 +612,8 @@ Resources:
       SourceArn: !GetAtt DeadManSchedule.Arn
 
 # --- Market Open / Close Schedulers ---
+# CP Gateway scale-up/down is handled by ASG ScheduledActions in compute.yaml.
+# These rules manage Fargate scale-up/down and the tickle/portfolio-risk schedules.
 
   MarketOpenRole:
     Type: AWS::IAM::Role
@@ -614,9 +630,6 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - Effect: Allow
-                Action: ec2:StartInstances
-                Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${ComputeStack.Outputs.Ec2InstanceId}"
               - Effect: Allow
                 Action: ecs:UpdateService
                 Resource: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/${ComputeStack.Outputs.EcsClusterName}/${ComputeStack.Outputs.EcsServiceName}"
@@ -645,9 +658,6 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: ec2:StopInstances
-                Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${ComputeStack.Outputs.Ec2InstanceId}"
-              - Effect: Allow
                 Action: ecs:UpdateService
                 Resource: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/${ComputeStack.Outputs.EcsClusterName}/${ComputeStack.Outputs.EcsServiceName}"
               - Effect: Allow
@@ -663,14 +673,10 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub trade-engine-market-open-${AWS::StackName}
-      Description: Start EC2 + Fargate at market open. Adjust cron for daylight saving.
+      Description: Start Fargate at market open. CP Gateway is scaled by ASG ScheduledAction. Adjust cron for daylight saving.
       ScheduleExpression: !Sub "cron(${MarketOpenUtc})"
       State: ENABLED
       Targets:
-        - Id: StartEc2
-          Arn: !Sub "arn:aws:ec2:${AWS::Region}::*"
-          RoleArn: !GetAtt MarketOpenRole.Arn
-          Input: !Sub '{"InstanceIds":["${ComputeStack.Outputs.Ec2InstanceId}"]}'
         - Id: ScaleFargateUp
           Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ComputeStack.Outputs.EcsClusterName}"
           RoleArn: !GetAtt MarketOpenRole.Arn
@@ -691,14 +697,10 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub trade-engine-market-close-${AWS::StackName}
-      Description: Stop EC2 + Fargate at market close.
+      Description: Stop Fargate at market close. CP Gateway is scaled by ASG ScheduledAction.
       ScheduleExpression: !Sub "cron(${MarketCloseUtc})"
       State: ENABLED
       Targets:
-        - Id: StopEc2
-          Arn: !Sub "arn:aws:ec2:${AWS::Region}::*"
-          RoleArn: !GetAtt MarketCloseRole.Arn
-          Input: !Sub '{"InstanceIds":["${ComputeStack.Outputs.Ec2InstanceId}"]}'
         - Id: ScaleFargateDown
           Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ComputeStack.Outputs.EcsClusterName}"
           RoleArn: !GetAtt MarketCloseRole.Arn
@@ -1088,11 +1090,11 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-EcrRepositoryUrl
 
-  Ec2InstanceId:
-    Description: CP Gateway EC2 instance ID
-    Value: !GetAtt ComputeStack.Outputs.Ec2InstanceId
+  CpGatewayAsgName:
+    Description: CP Gateway Auto Scaling Group name
+    Value: !GetAtt ComputeStack.Outputs.CpGatewayAsgName
     Export:
-      Name: !Sub ${AWS::StackName}-Ec2InstanceId
+      Name: !Sub ${AWS::StackName}-CpGatewayAsgName
 
   S3BucketName:
     Description: Dashboard UI S3 bucket
