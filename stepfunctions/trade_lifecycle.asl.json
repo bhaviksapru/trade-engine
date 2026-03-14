@@ -112,7 +112,8 @@
             "FillPending"
           ],
           "IntervalSeconds": 2,
-          "MaxAttempts": 15
+          "MaxAttempts": 15,
+          "BackoffRate": 1
         }
       ],
       "Catch": [

@@ -2,13 +2,17 @@
 Portfolio Risk Lambda - cross-trade exposure monitor. Runs every 60s during market hours.
 If daily loss limit is exceeded across all strategies:
   1. Stops all running Step Functions executions
-  2. Closes all open positions at market
-  3. Disables trading
-  4. Fires SNS alert
+  2. Cancels resting GTC stop orders
+  3. Closes all open positions at market
+  4. Disables trading
+  5. Fires SNS alert
 
-Fix: secType changed from STK to FUT for MES futures contract resolution.
+Fixes applied:
+  - secType changed from STK to FUT for MES futures contract resolution.
+  - GTC stop order is now cancelled before market close to prevent stale stop
+    orders from opening ghost positions on future trading days.
 """
-import os, json, boto3, httpx, logging
+import os, boto3, httpx, logging
 from datetime import datetime, timezone
 
 logger = logging.getLogger()
@@ -77,12 +81,20 @@ def handler(event, context):
     for trade in open_trades:
         trade_id = trade["trade_id"]
         try:
+            # Stop SF execution
             if trade.get("execution_arn"):
                 sf.stop_execution(
                     executionArn=trade["execution_arn"],
                     cause="PortfolioRiskLimit: daily loss limit exceeded"
                 )
-            _market_close(trade)
+
+            account_id = _get_account_id()
+
+            # FIX: Cancel resting GTC stop order before market close
+            _cancel_stop_order(trade_id, account_id, trade.get("stop_order_id", ""))
+
+            _market_close(trade, account_id)
+
             trades_table.update_item(
                 Key={"trade_id": trade_id},
                 UpdateExpression="SET #s = :s, exit_reason = :r, close_time = :t",
@@ -122,8 +134,20 @@ def handler(event, context):
     }
 
 
-def _market_close(trade: dict):
-    account_id = _get_account_id()
+def _cancel_stop_order(trade_id: str, account_id: str, stop_order_id: str) -> None:
+    if not stop_order_id or stop_order_id == "unknown":
+        return
+    try:
+        httpx.delete(
+            f"{CP_URL}/v1/api/iserver/account/{account_id}/order/{stop_order_id}",
+            verify=False, timeout=5
+        )
+        logger.info(f"[{trade_id}] Cancelled GTC stop order {stop_order_id}")
+    except Exception as e:
+        logger.warning(f"[{trade_id}] Could not cancel stop order {stop_order_id}: {e}")
+
+
+def _market_close(trade: dict, account_id: str):
     conid      = _get_conid(trade["symbol"])
     close_side = "SELL" if trade["side"] == "BUY" else "BUY"
     httpx.post(
@@ -143,7 +167,6 @@ def _get_account_id() -> str:
 
 
 def _get_conid(symbol: str) -> str:
-    """FIX: secType=FUT (was STK). Returns front-month MES futures conid."""
     r = httpx.get(
         f"{CP_URL}/v1/api/iserver/secdef/search",
         params={"symbol": symbol, "secType": "FUT"},

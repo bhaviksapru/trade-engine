@@ -1,13 +1,18 @@
 """
 Actions route - POST endpoints for dashboard controls.
 All require valid Cognito JWT (enforced at app level).
+
+Fixes applied:
+  - _get_conid() secType changed STK → FUT (MES is a futures contract).
+    Emergency close buttons were silently failing to resolve the contract.
+  - All httpx calls converted to async (httpx.AsyncClient) so they never
+    block the uvicorn event loop thread during CP Gateway round-trips.
 """
 import os
-import json
 import boto3
 import httpx
 import logging
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from datetime import datetime, timezone
 from typing import Optional
@@ -15,21 +20,76 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-dynamodb   = boto3.resource("dynamodb")
-sf         = boto3.client("stepfunctions")
-sns        = boto3.client("sns")
-config_table = dynamodb.Table(os.environ["CONFIG_TABLE"])
-trades_table = dynamodb.Table(os.environ["TRADES_TABLE"])
+dynamodb       = boto3.resource("dynamodb")
+sf             = boto3.client("stepfunctions")
+sns            = boto3.client("sns")
+config_table   = dynamodb.Table(os.environ["CONFIG_TABLE"])
+trades_table   = dynamodb.Table(os.environ["TRADES_TABLE"])
 CP_GATEWAY_URL = os.environ["CP_GATEWAY_URL"]
 SNS_TOPIC_ARN  = os.environ["SNS_TOPIC_ARN"]
 
 
-# --- Close All Positions ---
+# ---------------------------------------------------------------------------
+# Async CP Gateway helpers
+# ---------------------------------------------------------------------------
+
+async def _get_account_id() -> str:
+    async with httpx.AsyncClient(verify=False, timeout=5) as client:
+        r = await client.get(f"{CP_GATEWAY_URL}/v1/api/portfolio/accounts")
+        r.raise_for_status()
+        return r.json()[0]["accountId"]
+
+
+async def _get_conid(symbol: str) -> str:
+    """FIX: secType=FUT (was STK). MES is a CME micro-futures contract."""
+    async with httpx.AsyncClient(verify=False, timeout=5) as client:
+        r = await client.get(
+            f"{CP_GATEWAY_URL}/v1/api/iserver/secdef/search",
+            params={"symbol": symbol, "secType": "FUT"},
+        )
+        r.raise_for_status()
+        data = r.json()
+        if not data:
+            raise HTTPException(404, f"Futures contract not found for {symbol}")
+        return str(data[0]["conid"])
+
+
+async def _market_close_at_ib(account_id: str, conid: str,
+                               close_side: str, quantity: int) -> None:
+    async with httpx.AsyncClient(verify=False, timeout=10) as client:
+        r = await client.post(
+            f"{CP_GATEWAY_URL}/v1/api/iserver/account/{account_id}/orders",
+            json={"orders": [{
+                "conid":     int(conid),
+                "orderType": "MKT",
+                "side":      close_side,
+                "quantity":  quantity,
+                "tif":       "DAY",
+            }]},
+        )
+        r.raise_for_status()
+
+
+async def _cancel_order_at_ib(account_id: str, order_id: str) -> None:
+    """Cancel a standing IB order (e.g. the GTC stop). Swallows errors
+    since the order may have already been filled or expired."""
+    try:
+        async with httpx.AsyncClient(verify=False, timeout=5) as client:
+            await client.delete(
+                f"{CP_GATEWAY_URL}/v1/api/iserver/account/{account_id}/order/{order_id}"
+            )
+    except Exception as e:
+        logger.warning(f"Could not cancel order {order_id} at IB (may already be gone): {e}")
+
+
+# ---------------------------------------------------------------------------
+# Close All Positions
+# ---------------------------------------------------------------------------
 
 @router.post("/close-all-positions")
 async def close_all_positions():
     """Emergency: close every open position and stop all workflows."""
-    result = trades_table.query(
+    result     = trades_table.query(
         IndexName="StatusIndex",
         KeyConditionExpression="status = :s",
         ExpressionAttributeValues={":s": "OPEN"},
@@ -39,27 +99,30 @@ async def close_all_positions():
     if not open_trades:
         return {"message": "No open positions", "closed": []}
 
-    account_id = _get_account_id()
-    closed, failed = [], []
+    account_id      = await _get_account_id()
+    closed, failed  = [], []
 
     for trade in open_trades:
         trade_id = trade["trade_id"]
         try:
-            # Stop SF execution
+            # 1. Stop SF execution
             if trade.get("execution_arn"):
-                sf.stop_execution(executionArn=trade["execution_arn"], cause="ManualCloseAll")
+                sf.stop_execution(
+                    executionArn=trade["execution_arn"],
+                    cause="ManualCloseAll"
+                )
 
-            # Market close at IB
+            conid      = await _get_conid(trade["symbol"])
             close_side = "SELL" if trade["side"] == "BUY" else "BUY"
-            conid = _get_conid(trade["symbol"])
-            httpx.post(
-                f"{CP_GATEWAY_URL}/v1/api/iserver/account/{account_id}/orders",
-                json={"orders": [{"conid": int(conid), "orderType": "MKT",
-                                  "side": close_side, "quantity": int(trade["quantity"]), "tif": "DAY"}]},
-                verify=False, timeout=10
-            ).raise_for_status()
 
-            # Update DynamoDB
+            # 2. Cancel the standing GTC stop order before the market close
+            if trade.get("stop_order_id") and trade["stop_order_id"] != "unknown":
+                await _cancel_order_at_ib(account_id, trade["stop_order_id"])
+
+            # 3. Market close
+            await _market_close_at_ib(account_id, conid, close_side, int(trade["quantity"]))
+
+            # 4. Update DynamoDB
             trades_table.update_item(
                 Key={"trade_id": trade_id},
                 UpdateExpression="SET #s = :s, exit_reason = :r, close_time = :t",
@@ -75,49 +138,57 @@ async def close_all_positions():
             failed.append({"trade_id": trade_id, "error": str(e)})
 
     _disable_trading("manual_close_all")
-    sns.publish(TopicArn=SNS_TOPIC_ARN,
-                Message=f"Manual close all: {len(closed)} closed, {len(failed)} failed",
-                Subject="Trade Engine - Close All")
-
+    sns.publish(
+        TopicArn=SNS_TOPIC_ARN,
+        Message=f"Manual close all: {len(closed)} closed, {len(failed)} failed",
+        Subject="Trade Engine - Close All",
+    )
     return {"closed": closed, "failed": failed}
 
 
-# --- Close Single Position ---
+# ---------------------------------------------------------------------------
+# Close Single Position
+# ---------------------------------------------------------------------------
 
 @router.post("/close-position/{trade_id}")
 async def close_position(trade_id: str):
     result = trades_table.get_item(Key={"trade_id": trade_id})
-    trade = result.get("Item")
+    trade  = result.get("Item")
     if not trade:
         raise HTTPException(404, f"Trade {trade_id} not found")
     if trade["status"] != "OPEN":
         raise HTTPException(400, f"Trade {trade_id} is not open (status: {trade['status']})")
 
-    account_id = _get_account_id()
+    account_id = await _get_account_id()
+    conid      = await _get_conid(trade["symbol"])
     close_side = "SELL" if trade["side"] == "BUY" else "BUY"
-    conid = _get_conid(trade["symbol"])
 
+    # Stop SF execution
     if trade.get("execution_arn"):
         sf.stop_execution(executionArn=trade["execution_arn"], cause="ManualClose")
 
-    httpx.post(
-        f"{CP_GATEWAY_URL}/v1/api/iserver/account/{account_id}/orders",
-        json={"orders": [{"conid": int(conid), "orderType": "MKT",
-                          "side": close_side, "quantity": int(trade["quantity"]), "tif": "DAY"}]},
-        verify=False, timeout=10
-    ).raise_for_status()
+    # Cancel the standing GTC stop order
+    if trade.get("stop_order_id") and trade["stop_order_id"] != "unknown":
+        await _cancel_order_at_ib(account_id, trade["stop_order_id"])
+
+    # Market close
+    await _market_close_at_ib(account_id, conid, close_side, int(trade["quantity"]))
 
     trades_table.update_item(
         Key={"trade_id": trade_id},
         UpdateExpression="SET #s = :s, exit_reason = :r, close_time = :t",
         ExpressionAttributeNames={"#s": "status"},
-        ExpressionAttributeValues={":s": "CLOSED", ":r": "MANUAL_CLOSE",
-                                   ":t": datetime.now(timezone.utc).isoformat()},
+        ExpressionAttributeValues={
+            ":s": "CLOSED", ":r": "MANUAL_CLOSE",
+            ":t": datetime.now(timezone.utc).isoformat(),
+        },
     )
     return {"message": f"Position {trade_id} closed"}
 
 
-# --- Trading Enable/Disable ---
+# ---------------------------------------------------------------------------
+# Trading Enable / Disable
+# ---------------------------------------------------------------------------
 
 @router.post("/pause-trading")
 async def pause_trading():
@@ -127,16 +198,20 @@ async def pause_trading():
 
 @router.post("/resume-trading")
 async def resume_trading():
-    config_table.put_item(Item={"pk": "trading_enabled", "value": True, "reason": "manual_resume"})
+    config_table.put_item(Item={
+        "pk": "trading_enabled", "value": True, "reason": "manual_resume"
+    })
     return {"trading_enabled": True}
 
 
-# --- Notifications ---
+# ---------------------------------------------------------------------------
+# Notifications
+# ---------------------------------------------------------------------------
 
 class NotificationPrefs(BaseModel):
     enabled: bool
-    phone: Optional[str] = None
-    events: Optional[dict] = None
+    phone:   Optional[str]  = None
+    events:  Optional[dict] = None
 
 
 @router.post("/notifications/update")
@@ -150,12 +225,14 @@ async def update_notifications(prefs: NotificationPrefs):
     return {"message": "Notification preferences updated", "enabled": prefs.enabled}
 
 
-# --- Risk Parameters ---
+# ---------------------------------------------------------------------------
+# Risk Parameters
+# ---------------------------------------------------------------------------
 
 class RiskParams(BaseModel):
-    max_daily_loss_usd: Optional[float] = None
-    max_position_size:  Optional[int]   = None
-    order_cooldown_secs: Optional[int]  = None
+    max_daily_loss_usd:  Optional[float] = None
+    max_position_size:   Optional[int]   = None
+    order_cooldown_secs: Optional[int]   = None
 
 
 @router.post("/set-risk-parameters")
@@ -177,23 +254,11 @@ async def set_risk_parameters(params: RiskParams):
     return {"message": "Risk parameters updated", "updated": updates}
 
 
-# --- Helpers ---
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
 
 def _disable_trading(reason: str):
-    config_table.put_item(Item={"pk": "trading_enabled", "value": False, "reason": reason})
-
-
-def _get_account_id() -> str:
-    resp = httpx.get(f"{CP_GATEWAY_URL}/v1/api/portfolio/accounts", verify=False, timeout=5)
-    resp.raise_for_status()
-    return resp.json()[0]["accountId"]
-
-
-def _get_conid(symbol: str) -> str:
-    resp = httpx.get(f"{CP_GATEWAY_URL}/v1/api/iserver/secdef/search",
-                     params={"symbol": symbol, "secType": "STK"}, verify=False, timeout=5)
-    resp.raise_for_status()
-    data = resp.json()
-    if not data:
-        raise HTTPException(404, f"Symbol {symbol} not found")
-    return str(data[0]["conid"])
+    config_table.put_item(Item={
+        "pk": "trading_enabled", "value": False, "reason": reason
+    })

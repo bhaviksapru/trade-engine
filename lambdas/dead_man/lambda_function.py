@@ -4,10 +4,12 @@ Scans DynamoDB for open positions where last_heartbeat is stale (>15min).
 If found: forcefully closes position at IB and stops the Step Functions execution.
 This is the last line of defense if all other components fail.
 
-Fix: secType changed from STK to FUT for MES futures contract resolution.
+Fixes applied:
+  - secType changed from STK to FUT for MES futures contract resolution.
+  - GTC stop order is now cancelled before emergency market close to prevent
+    stale stop orders from opening ghost positions on future trading days.
 """
 import os
-import json
 import boto3
 import httpx
 import logging
@@ -22,8 +24,8 @@ config_table = dynamodb.Table(os.environ["CONFIG_TABLE"])
 sf           = boto3.client("stepfunctions")
 sns          = boto3.client("sns")
 
-CP_GATEWAY_URL         = os.environ["CP_GATEWAY_URL"]
-SNS_TOPIC_ARN          = os.environ["SNS_TOPIC_ARN"]
+CP_GATEWAY_URL          = os.environ["CP_GATEWAY_URL"]
+SNS_TOPIC_ARN           = os.environ["SNS_TOPIC_ARN"]
 STALE_THRESHOLD_MINUTES = int(os.environ.get("STALE_THRESHOLD_MINUTES", "15"))
 
 
@@ -32,7 +34,7 @@ def handler(event, context):
     stale_cutoff = now - timedelta(minutes=STALE_THRESHOLD_MINUTES)
 
     try:
-        result     = trades_table.query(
+        result      = trades_table.query(
             IndexName="StatusIndex",
             KeyConditionExpression="status = :s",
             ExpressionAttributeValues={":s": "OPEN"},
@@ -52,7 +54,6 @@ def handler(event, context):
         if not heartbeat_str:
             orphaned.append(trade)
             continue
-        # FIX: handle 'Z' suffix for Python < 3.11 compatibility
         heartbeat = datetime.fromisoformat(heartbeat_str.replace("Z", "+00:00"))
         if heartbeat < stale_cutoff:
             orphaned.append(trade)
@@ -75,7 +76,7 @@ def handler(event, context):
 
         logger.warning(f"Closing orphaned trade: {trade_id} - {side} {quantity} {symbol}")
 
-        # 1. Stop Step Functions execution if running
+        # 1. Stop Step Functions execution
         if execution_arn:
             try:
                 sf.stop_execution(
@@ -86,11 +87,15 @@ def handler(event, context):
             except Exception as e:
                 logger.warning(f"Could not stop execution {execution_arn}: {e}")
 
-        # 2. Place emergency market close at IB
         close_side = "SELL" if side == "BUY" else "BUY"
         try:
             account_id = _get_account_id()
             conid      = _get_conid(symbol)
+
+            # 2. FIX: Cancel the resting GTC stop order before market close
+            _cancel_stop_order(trade_id, account_id, trade.get("stop_order_id", ""))
+
+            # 3. Emergency market close
             order_resp = httpx.post(
                 f"{CP_GATEWAY_URL}/v1/api/iserver/account/{account_id}/orders",
                 json={"orders": [{
@@ -105,7 +110,7 @@ def handler(event, context):
             order_resp.raise_for_status()
             logger.info(f"Emergency close order placed for {trade_id}")
 
-            # 3. Update DynamoDB
+            # 4. Update DynamoDB
             trades_table.update_item(
                 Key={"trade_id": trade_id},
                 UpdateExpression="SET #s = :s, exit_reason = :r, close_time = :t",
@@ -122,7 +127,7 @@ def handler(event, context):
             logger.error(f"Emergency close FAILED for {trade_id}: {e}")
             failed.append({"trade_id": trade_id, "error": str(e)})
 
-    # 4. Disable trading and alert
+    # 5. Disable trading and alert
     config_table.put_item(Item={
         "pk":     "trading_enabled",
         "value":  False,
@@ -150,6 +155,19 @@ def handler(event, context):
     }
 
 
+def _cancel_stop_order(trade_id: str, account_id: str, stop_order_id: str) -> None:
+    if not stop_order_id or stop_order_id == "unknown":
+        return
+    try:
+        httpx.delete(
+            f"{CP_GATEWAY_URL}/v1/api/iserver/account/{account_id}/order/{stop_order_id}",
+            verify=False, timeout=5
+        )
+        logger.info(f"[{trade_id}] Cancelled GTC stop order {stop_order_id}")
+    except Exception as e:
+        logger.warning(f"[{trade_id}] Could not cancel stop order {stop_order_id}: {e}")
+
+
 def _get_account_id() -> str:
     resp = httpx.get(f"{CP_GATEWAY_URL}/v1/api/portfolio/accounts", verify=False, timeout=5)
     resp.raise_for_status()
@@ -157,7 +175,6 @@ def _get_account_id() -> str:
 
 
 def _get_conid(symbol: str) -> str:
-    """FIX: secType=FUT (was STK). Returns front-month MES futures conid."""
     resp = httpx.get(
         f"{CP_GATEWAY_URL}/v1/api/iserver/secdef/search",
         params={"symbol": symbol, "secType": "FUT"},

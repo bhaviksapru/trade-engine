@@ -3,7 +3,12 @@ Close Position Lambda - places market close order at IB, updates DynamoDB.
 Handles both normal close (after monitoring loop) and CANCEL (fill timeout).
 Returns { "close_price": ..., "exit_reason": ... }
 
-Fix: secType changed from STK to FUT for MES futures contract resolution.
+Fixes applied:
+  - secType changed from STK to FUT for MES futures contract resolution.
+  - GTC stop order is now cancelled at IB before the market close order is sent
+    for any exit that isn't STOP_HIT. Without this, the standing stop order
+    remains live at IB indefinitely and can fill on a subsequent trading day,
+    opening an unwanted position.
 """
 import os, boto3, httpx, logging
 from datetime import datetime, timezone
@@ -35,6 +40,15 @@ def handler(event, context):
     account_id = _get_account_id()
     conid      = _get_conid(symbol)
 
+    # FIX: Cancel the GTC stop order before sending the market close.
+    # For STOP_HIT exits the stop triggered naturally at IB so there is no
+    # open order to cancel. For every other exit reason (TP_HIT, TIMEOUT,
+    # EMERGENCY, MANUAL) the stop is still resting GTC and must be cancelled,
+    # otherwise IB will fill it on a future trading day opening a ghost position.
+    if exit_reason != "STOP_HIT":
+        _cancel_stop_order(trade_id, account_id)
+
+    # Market close
     resp = httpx.post(
         f"{CP_URL}/v1/api/iserver/account/{account_id}/orders",
         json={"orders": [{
@@ -90,19 +104,40 @@ def handler(event, context):
     }
 
 
+def _cancel_stop_order(trade_id: str, account_id: str) -> None:
+    """Cancel the resting GTC stop order placed by set_stop.
+    Reads stop_order_id from DynamoDB. Swallows errors — if the order is
+    already gone (e.g. stop was touched but not triggered before our close)
+    IB will return 404 which we ignore.
+    """
+    try:
+        trade = trades_table.get_item(Key={"trade_id": trade_id}).get("Item", {})
+        stop_order_id = trade.get("stop_order_id", "")
+        if not stop_order_id or stop_order_id == "unknown":
+            return
+        httpx.delete(
+            f"{CP_URL}/v1/api/iserver/account/{account_id}/order/{stop_order_id}",
+            verify=False, timeout=5
+        )
+        logger.info(f"[{trade_id}] Cancelled GTC stop order {stop_order_id}")
+    except Exception as e:
+        logger.warning(f"[{trade_id}] Could not cancel stop order (may already be gone): {e}")
+
+
 def _cancel_order(event: dict) -> dict:
+    """Cancel an unfilled entry order (fill timeout path)."""
     trade_id    = event["trade_id"]
     ib_order_id = str(event.get("ib_order_id", ""))
     account_id  = _get_account_id()
 
-    logger.info(f"[{trade_id}] Cancelling order {ib_order_id}")
+    logger.info(f"[{trade_id}] Cancelling entry order {ib_order_id}")
     try:
         httpx.delete(
             f"{CP_URL}/v1/api/iserver/account/{account_id}/order/{ib_order_id}",
             verify=False, timeout=5
         )
     except Exception as e:
-        logger.warning(f"Cancel order failed (may already be filled): {e}")
+        logger.warning(f"Cancel entry order failed (may already be filled): {e}")
 
     trades_table.update_item(
         Key={"trade_id": trade_id},
@@ -123,7 +158,7 @@ def _get_account_id() -> str:
 
 
 def _get_conid(symbol: str) -> str:
-    """FIX: secType=FUT (was STK). Returns front-month MES futures conid."""
+    """secType=FUT — MES is a CME futures contract. Returns front-month conid."""
     r = httpx.get(
         f"{CP_URL}/v1/api/iserver/secdef/search",
         params={"symbol": symbol, "secType": "FUT"},
