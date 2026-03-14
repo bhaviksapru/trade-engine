@@ -177,6 +177,7 @@ Ec2InstanceId             i-XXXX
 | All Lambdas | $0.00 (free tier) |
 | DynamoDB | $0.04 |
 | EventBridge | $0.00 (free tier) |
+| Cognito User Pool | $0.00 (free tier — 1 MAU vs 50,000 free) |
 | CloudWatch Logs | $1.06 |
 | Secrets Manager | $1.60 |
 | S3 + CloudFront | $0.02 |

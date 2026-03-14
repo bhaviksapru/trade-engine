@@ -239,6 +239,32 @@ Monthly total: $1.60
 
 ---
 
+## Cognito
+
+Cognito User Pool provides dashboard authentication via Google federation.
+The dashboard is single-operator: one Google account is whitelisted in
+`AllowedGoogleEmail`; every other identity receives a 403 before any AWS
+resource is touched.
+
+```
+Monthly Active Users (MAUs): 1  (single operator)
+Free tier:                    50,000 MAUs/month — permanent, not a 12-month trial
+Monthly cost:                 $0.00
+
+Breakdown for reference:
+  User Pool:          free up to 50,000 MAUs
+  Google federation:  included in MAU count (no separate SAML/OIDC charge
+                      because Google is a "social IdP" in Cognito pricing)
+  Hosted UI:          no additional charge
+  Token operations:   ~42 logins/month (2x per trading day x 21 days)
+                      well within the 50,000 MAU threshold
+
+If the operator count ever exceeds 50,000 MAUs the rate is $0.0055/MAU.
+At any realistic scale for a personal trading system this remains $0.00.
+```
+
+---
+
 ## S3 + CloudFront
 
 Static dashboard files (~50KB total).
@@ -314,6 +340,7 @@ Each alarm feeds the existing SNS topic - no additional SNS cost.
 | DynamoDB | $0.04 | On-demand, low volume |
 | API Gateway | $0.00 | Free tier |
 | EventBridge | $0.00 | Free tier |
+| Cognito User Pool | $0.00 | Free tier — single operator (1 MAU vs 50,000 free) |
 | S3 + CloudFront | $0.02 | Tiny static site |
 | CloudWatch Alarms | $1.30 | 13 alarms, Lambda + SF + ECS |
 | **Total** | **~$31.36** | |
