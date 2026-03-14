@@ -250,21 +250,22 @@ Combined: ~$0.02
 
 ## NAT Gateway
 
-Only needed for CP Gateway EC2 → IBKR servers.
-VPC Endpoints handle all AWS service traffic without NAT.
+Three NAT Gateways (one per AZ) are required for the HA deployment.
+VPC Endpoints handle all AWS service traffic without NAT; only CP Gateway → IBKR
+traffic flows through NAT.
 
 ```
-IBKR traffic: ~50MB/day × 21 days = ~1GB/month
+IBKR traffic: ~50MB/day × 21 days = ~1GB/month (concentrated in AZ-a where EC2 lives)
 
-NAT Gateway hours: 157.5hrs × $0.045/hour = $7.09
+NAT Gateway hours (3 GWs × 157.5hrs): 3 × $0.045/hour × 157.5hrs = $21.26
 Data processed: 1GB × $0.045/GB = $0.05
 
-Note: NAT Gateway has a minimum hourly charge when running.
-Total: $7.14
+Note: Two of the three NAT Gateways (AZ-b, AZ-c) carry near-zero data because
+the CP Gateway EC2 sits in AZ-a. Their cost is purely the hourly charge.
+They exist to ensure Lambda and Fargate egress remains healthy if AZ-a NAT fails.
+Total: $21.31
 
-This is higher than expected — consider reserving NAT Gateway
-or using a cheaper NAT instance (t3.nano self-managed: ~$3/month).
-Terraform uses NAT Gateway for simplicity.
+Trade-off: +$14.17/month vs the single-NAT design for full AZ-level egress HA.
 ```
 
 ---
@@ -274,7 +275,7 @@ Terraform uses NAT Gateway for simplicity.
 | Service | Cost | Notes |
 |---|---|---|
 | ALB | $6.26 | Largest fixed cost, runs 24/7 |
-| NAT Gateway | $7.14 | Only during market hours |
+| NAT Gateway (×3) | $21.31 | One per AZ for HA egress isolation |
 | EC2 t3.small | $3.28 | Market hours only |
 | ECS Fargate | $1.94 | Market hours only |
 | Secrets Manager | $1.60 | Fixed per secret |
@@ -286,7 +287,7 @@ Terraform uses NAT Gateway for simplicity.
 | API Gateway | $0.00 | Free tier |
 | EventBridge | $0.00 | Free tier |
 | S3 + CloudFront | $0.02 | Tiny static site |
-| **Total** | **~$22.14** | |
+| **Total** | **~$36.28** | |
 
 ---
 
@@ -295,8 +296,8 @@ Terraform uses NAT Gateway for simplicity.
 | | Monthly | Annual |
 |---|---|---|
 | NinjaTrader execution licence | ~$100 | ~$1,200 |
-| trade-engine (AWS) | ~$22 | ~$264 |
-| **Saving** | **~$78** | **~$936** |
+| trade-engine (AWS, 3-AZ HA) | ~$36 | ~$432 |
+| **Saving** | **~$64** | **~$768** |
 
 Break-even: infrastructure pays for itself in under 3 weeks of trading.
 

@@ -1,5 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Trade Engine — VPC, subnets, security groups, VPC endpoints
+Description: >
+  Trade Engine — VPC, subnets, security groups, VPC endpoints.
+  High-availability deployment: 3 public subnets, 3 private subnets,
+  3 NAT Gateways (one per AZ), per-AZ private route tables.
 
 Parameters:
   YourDesktopIp:
@@ -34,7 +37,7 @@ Resources:
       VpcId: !Ref VPC
       InternetGatewayId: !Ref InternetGateway
 
-# ── Subnets ───────────────────────────────────────────────────────────────────
+# ── Public Subnets (3 AZs) ────────────────────────────────────────────────────
 
   PublicSubnet1:
     Type: AWS::EC2::Subnet
@@ -45,7 +48,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub trade-engine-public-1-${StackName}
+          Value: !Sub trade-engine-public-1a-${StackName}
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
@@ -56,7 +59,20 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub trade-engine-public-2-${StackName}
+          Value: !Sub trade-engine-public-1b-${StackName}
+
+  PublicSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select [2, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub trade-engine-public-1c-${StackName}
+
+# ── Private Subnets (3 AZs) ───────────────────────────────────────────────────
 
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
@@ -66,7 +82,7 @@ Resources:
       AvailabilityZone: !Select [0, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub trade-engine-private-1-${StackName}
+          Value: !Sub trade-engine-private-1a-${StackName}
 
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
@@ -76,26 +92,78 @@ Resources:
       AvailabilityZone: !Select [1, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub trade-engine-private-2-${StackName}
+          Value: !Sub trade-engine-private-1b-${StackName}
 
-# ── NAT Gateway (1 AZ — sufficient at this scale) ─────────────────────────────
+  PrivateSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.12.0/24
+      AvailabilityZone: !Select [2, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub trade-engine-private-1c-${StackName}
 
-  NatEip:
+# ── NAT Gateways — one per AZ for HA ─────────────────────────────────────────
+# Each AZ's private subnet routes through its own NAT Gateway.
+# If one AZ loses its NAT, only workloads in that AZ are affected;
+# Lambdas and Fargate tasks in the other two AZs continue uninterrupted.
+
+  NatEip1:
     Type: AWS::EC2::EIP
     DependsOn: VPCGatewayAttachment
     Properties:
       Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub trade-engine-nat-eip-1a-${StackName}
 
-  NatGateway:
+  NatEip2:
+    Type: AWS::EC2::EIP
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub trade-engine-nat-eip-1b-${StackName}
+
+  NatEip3:
+    Type: AWS::EC2::EIP
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub trade-engine-nat-eip-1c-${StackName}
+
+  NatGateway1:
     Type: AWS::EC2::NatGateway
     Properties:
-      AllocationId: !GetAtt NatEip.AllocationId
+      AllocationId: !GetAtt NatEip1.AllocationId
       SubnetId: !Ref PublicSubnet1
       Tags:
         - Key: Name
-          Value: !Sub trade-engine-nat-${StackName}
+          Value: !Sub trade-engine-nat-1a-${StackName}
 
-# ── Route Tables ──────────────────────────────────────────────────────────────
+  NatGateway2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEip2.AllocationId
+      SubnetId: !Ref PublicSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub trade-engine-nat-1b-${StackName}
+
+  NatGateway3:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEip3.AllocationId
+      SubnetId: !Ref PublicSubnet3
+      Tags:
+        - Key: Name
+          Value: !Sub trade-engine-nat-1c-${StackName}
+
+# ── Public Route Table (shared — all public subnets route to IGW) ─────────────
 
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
@@ -125,36 +193,81 @@ Resources:
       SubnetId: !Ref PublicSubnet2
       RouteTableId: !Ref PublicRouteTable
 
-  PrivateRouteTable:
+  PublicSubnet3RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet3
+      RouteTableId: !Ref PublicRouteTable
+
+# ── Private Route Tables — one per AZ ────────────────────────────────────────
+# HA pattern: each private subnet routes egress through its local NAT Gateway.
+# An outage in one AZ's NAT does not disrupt egress in the other two AZs.
+
+  PrivateRouteTable1:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: !Sub trade-engine-private-rt-${StackName}
+          Value: !Sub trade-engine-private-rt-1a-${StackName}
 
-  PrivateRoute:
+  PrivateRoute1:
     Type: AWS::EC2::Route
     Properties:
-      RouteTableId: !Ref PrivateRouteTable
+      RouteTableId: !Ref PrivateRouteTable1
       DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NatGateway
+      NatGatewayId: !Ref NatGateway1
 
   PrivateSubnet1RTA:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PrivateSubnet1
-      RouteTableId: !Ref PrivateRouteTable
+      RouteTableId: !Ref PrivateRouteTable1
+
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub trade-engine-private-rt-1b-${StackName}
+
+  PrivateRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway2
 
   PrivateSubnet2RTA:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PrivateSubnet2
-      RouteTableId: !Ref PrivateRouteTable
+      RouteTableId: !Ref PrivateRouteTable2
+
+  PrivateRouteTable3:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub trade-engine-private-rt-1c-${StackName}
+
+  PrivateRoute3:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable3
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway3
+
+  PrivateSubnet3RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet3
+      RouteTableId: !Ref PrivateRouteTable3
 
 # ── Security Groups ───────────────────────────────────────────────────────────
 
-  # Lambda workers — need to reach CP Gateway (:5000) and VPC endpoints (:443)
   SgLambdaWorkers:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -175,23 +288,27 @@ Resources:
         - Key: Name
           Value: !Sub sg-lambda-workers-${StackName}
 
-  # EC2 CP Gateway — private, never public-facing
   SgCpGateway:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: CP Gateway EC2 — inbound from Lambda, SSH from desktop only
+      GroupDescription: CP Gateway EC2 — inbound from Lambda and Fargate, SSH from desktop
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 5000
           ToPort: 5000
           SourceSecurityGroupId: !Ref SgLambdaWorkers
-          Description: Lambda workers
+          Description: Lambda workers (all 3 AZs)
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          SourceSecurityGroupId: !Ref SgFargate
+          Description: Fargate dashboard API health checks
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
           CidrIp: !Sub "${YourDesktopIp}/32"
-          Description: SSH from desktop only — disable if using SSM Session Manager
+          Description: SSH from desktop only
       SecurityGroupEgress:
         - IpProtocol: tcp
           FromPort: 443
@@ -207,7 +324,6 @@ Resources:
         - Key: Name
           Value: !Sub sg-cpgateway-${StackName}
 
-  # Fargate dashboard API — only accepts traffic from ALB
   SgFargate:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -224,21 +340,25 @@ Resources:
           FromPort: 443
           ToPort: 443
           DestinationSecurityGroupId: !Ref SgVpcEndpoints
-          Description: VPC endpoints (DynamoDB, EventBridge)
+          Description: VPC endpoints (DynamoDB, SQS)
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          DestinationSecurityGroupId: !Ref SgCpGateway
+          Description: CP Gateway health check
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
           CidrIp: 0.0.0.0/0
-          Description: Cognito JWKS validation (external)
+          Description: Cognito JWKS validation
       Tags:
         - Key: Name
           Value: !Sub sg-fargate-${StackName}
 
-  # ALB — public-facing, HTTPS only
   SgAlb:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: ALB — public HTTPS ingress, forwards to Fargate
+      GroupDescription: ALB — public HTTPS ingress, forwards to Fargate across all AZs
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -251,21 +371,25 @@ Resources:
           ToPort: 80
           CidrIp: 0.0.0.0/0
           Description: HTTP (redirects to HTTPS)
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+          Description: ALB direct listener
       SecurityGroupEgress:
         - IpProtocol: tcp
           FromPort: 8000
           ToPort: 8000
           DestinationSecurityGroupId: !Ref SgFargate
-          Description: Fargate tasks
+          Description: Fargate tasks (all 3 AZs)
       Tags:
         - Key: Name
           Value: !Sub sg-alb-${StackName}
 
-  # VPC Endpoints — accept HTTPS from Lambda and Fargate
   SgVpcEndpoints:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: VPC interface endpoints — HTTPS from private resources
+      GroupDescription: VPC interface endpoints — HTTPS from all private resources (3 AZs)
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -282,9 +406,8 @@ Resources:
         - Key: Name
           Value: !Sub sg-vpc-endpoints-${StackName}
 
-# ── VPC Endpoints — avoids NAT Gateway charges for AWS services ───────────────
+# ── VPC Endpoints — all Interface endpoints deployed across all 3 private subnets
 
-  # DynamoDB — Gateway endpoint (free)
   DynamoDbEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
@@ -292,7 +415,9 @@ Resources:
       VpcId: !Ref VPC
       VpcEndpointType: Gateway
       RouteTableIds:
-        - !Ref PrivateRouteTable
+        - !Ref PrivateRouteTable1
+        - !Ref PrivateRouteTable2
+        - !Ref PrivateRouteTable3
       PolicyDocument:
         Statement:
           - Effect: Allow
@@ -300,83 +425,104 @@ Resources:
             Action: dynamodb:*
             Resource: '*'
 
-  # Step Functions — Interface endpoint
   StatesEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
       ServiceName: !Sub com.amazonaws.${AWS::Region}.states
       VpcId: !Ref VPC
       VpcEndpointType: Interface
-      SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+        - !Ref PrivateSubnet3
       SecurityGroupIds: [!Ref SgVpcEndpoints]
       PrivateDnsEnabled: true
 
-  # Secrets Manager — Interface endpoint
   SecretsManagerEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
       ServiceName: !Sub com.amazonaws.${AWS::Region}.secretsmanager
       VpcId: !Ref VPC
       VpcEndpointType: Interface
-      SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+        - !Ref PrivateSubnet3
       SecurityGroupIds: [!Ref SgVpcEndpoints]
       PrivateDnsEnabled: true
 
-  # ECR API — Interface endpoint (for ECS pulling images)
   EcrApiEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
       ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.api
       VpcId: !Ref VPC
       VpcEndpointType: Interface
-      SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+        - !Ref PrivateSubnet3
       SecurityGroupIds: [!Ref SgVpcEndpoints]
       PrivateDnsEnabled: true
 
-  # ECR Docker — Interface endpoint
   EcrDkrEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
       ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.dkr
       VpcId: !Ref VPC
       VpcEndpointType: Interface
-      SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+        - !Ref PrivateSubnet3
       SecurityGroupIds: [!Ref SgVpcEndpoints]
       PrivateDnsEnabled: true
 
-  # CloudWatch Logs — Interface endpoint
   LogsEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
       ServiceName: !Sub com.amazonaws.${AWS::Region}.logs
       VpcId: !Ref VPC
       VpcEndpointType: Interface
-      SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+        - !Ref PrivateSubnet3
       SecurityGroupIds: [!Ref SgVpcEndpoints]
       PrivateDnsEnabled: true
 
-  # SQS — Interface endpoint (for Fargate WebSocket poller)
   SqsEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
       ServiceName: !Sub com.amazonaws.${AWS::Region}.sqs
       VpcId: !Ref VPC
       VpcEndpointType: Interface
-      SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+        - !Ref PrivateSubnet3
       SecurityGroupIds: [!Ref SgVpcEndpoints]
       PrivateDnsEnabled: true
 
 Outputs:
   VpcId:
     Value: !Ref VPC
+
+  # Public subnets — ALB spans all 3 AZs
   PublicSubnet1:
     Value: !Ref PublicSubnet1
   PublicSubnet2:
     Value: !Ref PublicSubnet2
+  PublicSubnet3:
+    Value: !Ref PublicSubnet3
+
+  # Private subnets — Lambdas and Fargate span all 3 AZs
   PrivateSubnet1:
     Value: !Ref PrivateSubnet1
   PrivateSubnet2:
     Value: !Ref PrivateSubnet2
+  PrivateSubnet3:
+    Value: !Ref PrivateSubnet3
+
   SgLambdaWorkers:
     Value: !Ref SgLambdaWorkers
   SgCpGateway:
@@ -387,5 +533,14 @@ Outputs:
     Value: !Ref SgAlb
   SgVpcEndpoints:
     Value: !Ref SgVpcEndpoints
-  PrivateRouteTableId:
-    Value: !Ref PrivateRouteTable
+
+  # NAT Gateway EIPs — whitelist all 3 at IBKR if IP-based auth is required
+  NatGateway1Ip:
+    Description: NAT EIP — AZ-a (us-east-2a)
+    Value: !Ref NatEip1
+  NatGateway2Ip:
+    Description: NAT EIP — AZ-b (us-east-2b)
+    Value: !Ref NatEip2
+  NatGateway3Ip:
+    Description: NAT EIP — AZ-c (us-east-2c)
+    Value: !Ref NatEip3

@@ -182,9 +182,9 @@ Ec2InstanceId             i-XXXX
 | S3 + CloudFront | $0.02 |
 | SNS | $0.00 |
 | NAT Gateway | $7.14 |
-| **Total** | **~$22/month** |
+| **Total** | **~$36/month (3-AZ HA)** |
 
-**vs NinjaTrader execution license: ~$100/month → saving ~$78/month**
+**vs NinjaTrader execution license: ~$100/month → saving ~$64/month**
 
 ---
 

@@ -537,11 +537,11 @@
 
     <!-- ── VPC Box ── -->
     <div class="group vpc-box" style="left:14px; top:490px; width:800px; height:320px;">
-      <div class="group-label">VPC — 10.0.0.0/16</div>
+      <div class="group-label">VPC — 10.0.0.0/16 · 3 AZs · 3 NAT Gateways</div>
 
       <!-- Private Subnet box -->
       <div class="group subnet-box" style="left:14px; top:24px; width:770px; height:270px;">
-        <div class="group-label">Private Subnets — 10.0.10.0/24 · 10.0.11.0/24</div>
+        <div class="group-label">Private Subnets — 10.0.10.0/24 (1a) · 10.0.11.0/24 (1b) · 10.0.12.0/24 (1c)</div>
 
         <!-- sg-lambda-workers box -->
         <div class="group sg-box" style="left:10px; top:24px; width:310px; height:220px;">
@@ -902,7 +902,7 @@
 <!-- ── Page Footer ─────────────────────────────────────────────────── -->
 <div class="page-footer">
   <div>Trade Engine · AWS Reference Architecture · SAM Deployment</div>
-  <div>~$22/month at 20 trades/day · saves ~$78/month vs NinjaTrader execution license</div>
+  <div>~$36/month at 20 trades/day (3-AZ HA) · saves ~$64/month vs NinjaTrader execution license</div>
   <div>All compute market-hours-only (9:00am–4:30pm ET Mon–Fri) · Dead Man Lambda runs 24/7</div>
 </div>
 
