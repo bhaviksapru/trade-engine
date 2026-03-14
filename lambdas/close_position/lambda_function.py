@@ -2,6 +2,8 @@
 Close Position Lambda - places market close order at IB, updates DynamoDB.
 Handles both normal close (after monitoring loop) and CANCEL (fill timeout).
 Returns { "close_price": ..., "exit_reason": ... }
+
+Fix: secType changed from STK to FUT for MES futures contract resolution.
 """
 import os, boto3, httpx, logging
 from datetime import datetime, timezone
@@ -46,12 +48,10 @@ def handler(event, context):
     )
     resp.raise_for_status()
 
-    # Get approximate close price from market data
     close_price = _get_last_price(conid)
     close_time  = datetime.now(timezone.utc).isoformat()
 
-    # Get fill price to calculate P&L
-    trade = trades_table.get_item(Key={"trade_id": trade_id}).get("Item", {})
+    trade      = trades_table.get_item(Key={"trade_id": trade_id}).get("Item", {})
     fill_price = float(trade.get("fill_price", 0))
 
     if side == "BUY":
@@ -75,7 +75,6 @@ def handler(event, context):
         },
     )
 
-    # Clear from positions table
     strategy_id = trade.get("strategy_id", "unknown")
     try:
         positions_table.delete_item(Key={"strategy_id": strategy_id, "symbol": symbol})
@@ -84,10 +83,10 @@ def handler(event, context):
 
     logger.info(f"[{trade_id}] Closed - price={close_price} pnl={pnl:.2f}")
     return {
-        "close_price":  close_price,
-        "exit_reason":  exit_reason,
-        "pnl_usd":      round(pnl, 2),
-        "trade_id":     trade_id,
+        "close_price": close_price,
+        "exit_reason": exit_reason,
+        "pnl_usd":     round(pnl, 2),
+        "trade_id":    trade_id,
     }
 
 
@@ -124,12 +123,16 @@ def _get_account_id() -> str:
 
 
 def _get_conid(symbol: str) -> str:
-    r = httpx.get(f"{CP_URL}/v1/api/iserver/secdef/search",
-                  params={"symbol": symbol, "secType": "STK"}, verify=False, timeout=5)
+    """FIX: secType=FUT (was STK). Returns front-month MES futures conid."""
+    r = httpx.get(
+        f"{CP_URL}/v1/api/iserver/secdef/search",
+        params={"symbol": symbol, "secType": "FUT"},
+        verify=False, timeout=5
+    )
     r.raise_for_status()
     data = r.json()
     if not data:
-        raise ValueError(f"No contract found for {symbol}")
+        raise ValueError(f"No futures contract found for {symbol}")
     return str(data[0]["conid"])
 
 

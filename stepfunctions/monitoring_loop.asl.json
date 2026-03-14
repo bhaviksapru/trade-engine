@@ -1,5 +1,5 @@
 {
-  "Comment": "Trade Engine - Express Workflow (nested monitoring loop, chains every 5min)",
+  "Comment": "Trade Engine - Express Workflow (nested monitoring loop). Exits with SHOULD_CHAIN near the 5-min limit so the parent Standard Workflow restarts it — preventing the double-close race that occurred when chaining was done fire-and-forget from inside this workflow.",
   "StartAt": "CheckPrice",
   "States": {
 
@@ -7,20 +7,20 @@
       "Type": "Task",
       "Resource": "${CheckPriceFunctionArn}",
       "Parameters": {
-        "trade_id.$": "$.trade_id",
-        "symbol.$": "$.symbol",
+        "trade_id.$":        "$.trade_id",
+        "symbol.$":          "$.symbol",
         "stop_loss_price.$": "$.stop_loss_price",
         "take_profit_price.$": "$.take_profit_price",
-        "fill_price.$": "$.fill_price",
-        "fill_time.$": "$.fill_time",
-        "side.$": "$.side",
-        "quantity.$": "$.quantity",
-        "chain_count.$": "$.chain_count",
+        "fill_price.$":      "$.fill_price",
+        "fill_time.$":       "$.fill_time",
+        "side.$":            "$.side",
+        "quantity.$":        "$.quantity",
+        "chain_count.$":     "$.chain_count",
         "execution_start.$": "$$.Execution.StartTime"
       },
       "ResultPath": "$.price_result",
       "Retry": [{ "ErrorEquals": ["Lambda.ServiceException"], "IntervalSeconds": 1, "MaxAttempts": 2 }],
-      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "ExitTimeout", "ResultPath": "$.error" }],
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "ExitError", "ResultPath": "$.error" }],
       "Next": "EvaluateConditions"
     },
 
@@ -50,7 +50,7 @@
         {
           "Variable": "$.price_result.should_chain",
           "BooleanEquals": true,
-          "Next": "ChainExecution"
+          "Next": "ExitShouldChain"
         }
       ],
       "Default": "WaitBeforeNextCheck"
@@ -62,36 +62,19 @@
       "Next": "CheckPrice"
     },
 
-    "ChainExecution": {
-      "Comment": "Near 5-min Express limit - start fresh execution with same context",
-      "Type": "Task",
-      "Resource": "arn:aws:states:::states:startExecution",
+    "ExitShouldChain": {
+      "Comment": "Near the 5-min Express limit. Signal the parent Standard Workflow to restart this monitoring loop. The parent uses startExecution.sync:2 and loops back on this exit_reason — only ONE monitoring loop is ever active at a time, eliminating the previous double-close race.",
+      "Type": "Pass",
       "Parameters": {
-        "StateMachineArn": "${MonitoringLoopArn}",
-        "Input": {
-          "trade_id.$": "$.trade_id",
-          "symbol.$": "$.symbol",
-          "side.$": "$.side",
-          "quantity.$": "$.quantity",
-          "fill_price.$": "$.fill_price",
-          "fill_time.$": "$.fill_time",
-          "stop_loss_price.$": "$.stop_loss_price",
-          "take_profit_price.$": "$.take_profit_price",
-          "strategy_id.$": "$.strategy_id",
-          "chain_count.$": "States.MathAdd($.chain_count, 1)"
-        }
+        "exit_reason": "SHOULD_CHAIN"
       },
-      "Next": "ExitChained"
-    },
-
-    "ExitChained": {
-      "Type": "Succeed"
+      "End": true
     },
 
     "ExitStopHit": {
       "Type": "Pass",
       "Parameters": {
-        "exit_reason": "STOP_HIT",
+        "exit_reason":  "STOP_HIT",
         "exit_price.$": "$.price_result.current_price"
       },
       "End": true
@@ -100,17 +83,18 @@
     "ExitTpHit": {
       "Type": "Pass",
       "Parameters": {
-        "exit_reason": "TP_HIT",
+        "exit_reason":  "TP_HIT",
         "exit_price.$": "$.price_result.current_price"
       },
       "End": true
     },
 
     "ExitTimeout": {
+      "Comment": "Trade duration exceeded MAX_TRADE_DURATION_MINUTES — exit cleanly.",
       "Type": "Pass",
       "Parameters": {
         "exit_reason": "TIMEOUT",
-        "exit_price.$": "$.price_result.current_price"
+        "exit_price":  0
       },
       "End": true
     },
@@ -118,8 +102,18 @@
     "ExitMaxLoss": {
       "Type": "Pass",
       "Parameters": {
-        "exit_reason": "MAX_LOSS_HIT",
+        "exit_reason":  "MAX_LOSS_HIT",
         "exit_price.$": "$.price_result.current_price"
+      },
+      "End": true
+    },
+
+    "ExitError": {
+      "Comment": "Catch-all for unexpected Lambda or runtime errors. exit_price=0 because $.price_result may not exist on this path — avoids the States.Runtime error that the old ExitTimeout state caused when reached via Catch.",
+      "Type": "Pass",
+      "Parameters": {
+        "exit_reason": "ERROR",
+        "exit_price":  0
       },
       "End": true
     }

@@ -1,8 +1,7 @@
 {
-  "Comment": "Trade Engine - Standard Workflow (outer trade lifecycle)",
+  "Comment": "Trade Engine - Standard Workflow (outer trade lifecycle). The monitoring loop (Express Workflow) exits with SHOULD_CHAIN when approaching the 5-min Express limit. MonitoringDecision catches that and loops StartMonitoring, ensuring only one monitoring loop runs at a time \u2014 eliminating the double-close race.",
   "StartAt": "PreTradeRiskCheck",
   "States": {
-
     "PreTradeRiskCheck": {
       "Type": "Task",
       "Resource": "${RiskCheckFunctionArn}",
@@ -14,11 +13,26 @@
         "quantity.$": "$.quantity"
       },
       "ResultPath": "$.risk_result",
-      "Retry": [{ "ErrorEquals": ["Lambda.ServiceException"], "IntervalSeconds": 2, "MaxAttempts": 2 }],
-      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "RejectedLog", "ResultPath": "$.error" }],
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "RejectedLog",
+          "ResultPath": "$.error"
+        }
+      ],
       "Next": "RiskDecision"
     },
-
     "RiskDecision": {
       "Type": "Choice",
       "Choices": [
@@ -30,7 +44,6 @@
       ],
       "Default": "RejectedLog"
     },
-
     "RejectedLog": {
       "Type": "Task",
       "Resource": "${LogTradeFunctionArn}",
@@ -41,7 +54,6 @@
       },
       "End": true
     },
-
     "PlaceOrder": {
       "Type": "Task",
       "Resource": "${PlaceOrderFunctionArn}",
@@ -54,11 +66,26 @@
         "limit_price.$": "$.limit_price"
       },
       "ResultPath": "$.order_result",
-      "Retry": [{ "ErrorEquals": ["States.ALL"], "IntervalSeconds": 3, "MaxAttempts": 2 }],
-      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "OrderFailedLog", "ResultPath": "$.error" }],
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 3,
+          "MaxAttempts": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "OrderFailedLog",
+          "ResultPath": "$.error"
+        }
+      ],
       "Next": "WaitForFill"
     },
-
     "OrderFailedLog": {
       "Type": "Task",
       "Resource": "${LogTradeFunctionArn}",
@@ -69,7 +96,6 @@
       },
       "End": true
     },
-
     "WaitForFill": {
       "Type": "Task",
       "Resource": "${WaitForFillFunctionArn}",
@@ -80,14 +106,34 @@
       },
       "ResultPath": "$.fill_result",
       "TimeoutSeconds": 60,
-      "Retry": [{ "ErrorEquals": ["FillPending"], "IntervalSeconds": 2, "MaxAttempts": 15 }],
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "FillPending"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 15
+        }
+      ],
       "Catch": [
-        { "ErrorEquals": ["States.Timeout", "FillTimeout"], "Next": "CancelOrder", "ResultPath": "$.error" },
-        { "ErrorEquals": ["States.ALL"], "Next": "OrderFailedLog", "ResultPath": "$.error" }
+        {
+          "ErrorEquals": [
+            "States.Timeout",
+            "FillTimeout"
+          ],
+          "Next": "CancelOrder",
+          "ResultPath": "$.error"
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "OrderFailedLog",
+          "ResultPath": "$.error"
+        }
       ],
       "Next": "SetProtectiveStop"
     },
-
     "CancelOrder": {
       "Type": "Task",
       "Resource": "${ClosePositionFunctionArn}",
@@ -98,7 +144,6 @@
       },
       "Next": "OrderFailedLog"
     },
-
     "SetProtectiveStop": {
       "Type": "Task",
       "Resource": "${SetStopFunctionArn}",
@@ -111,11 +156,19 @@
         "strategy_id.$": "$.strategy_id"
       },
       "ResultPath": "$.stop_result",
-      "Retry": [{ "ErrorEquals": ["States.ALL"], "IntervalSeconds": 2, "MaxAttempts": 3 }],
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3
+        }
+      ],
       "Next": "StartMonitoring"
     },
-
     "StartMonitoring": {
+      "Comment": "Launch the Express monitoring loop and WAIT for it (sync:2). When the loop approaches the 5-min Express limit it exits with exit_reason=SHOULD_CHAIN. MonitoringDecision below detects that and loops back here, starting a fresh Express execution \u2014 ensuring only one monitoring loop is active at any time.",
       "Type": "Task",
       "Resource": "arn:aws:states:::states:startExecution.sync:2",
       "Parameters": {
@@ -130,14 +183,53 @@
           "stop_loss_price.$": "$.stop_result.stop_loss_price",
           "take_profit_price.$": "$.stop_result.take_profit_price",
           "strategy_id.$": "$.strategy_id",
-          "chain_count": 0
+          "chain_count.$": "$.chain_count"
         }
       },
       "ResultPath": "$.monitor_result",
-      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "EmergencyClose", "ResultPath": "$.error" }],
-      "Next": "ClosePosition"
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "EmergencyClose",
+          "ResultPath": "$.error"
+        }
+      ],
+      "Next": "MonitoringDecision"
     },
-
+    "MonitoringDecision": {
+      "Comment": "If the monitoring loop exited because it was approaching the 5-min Express limit (SHOULD_CHAIN), loop back and start a new Express execution. For any real exit condition (STOP_HIT, TP_HIT, TIMEOUT, etc.), proceed to close the position.",
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.monitor_result.exit_reason",
+          "StringEquals": "SHOULD_CHAIN",
+          "Next": "IncrementChainCount"
+        }
+      ],
+      "Default": "ClosePosition"
+    },
+    "IncrementChainCount": {
+      "Comment": "Increment chain_count, write result back to $.chain_count, then restart monitoring.",
+      "Type": "Pass",
+      "Parameters": {
+        "trade_id.$": "$.trade_id",
+        "strategy_id.$": "$.strategy_id",
+        "symbol.$": "$.symbol",
+        "side.$": "$.side",
+        "quantity.$": "$.quantity",
+        "order_type.$": "$.order_type",
+        "limit_price.$": "$.limit_price",
+        "comment.$": "$.comment",
+        "fill_result.$": "$.fill_result",
+        "stop_result.$": "$.stop_result",
+        "monitor_result.$": "$.monitor_result",
+        "chain_count.$": "States.MathAdd($.chain_count, 1)"
+      },
+      "ResultPath": "$",
+      "Next": "StartMonitoring"
+    },
     "ClosePosition": {
       "Type": "Task",
       "Resource": "${ClosePositionFunctionArn}",
@@ -150,11 +242,26 @@
         "action": "CLOSE"
       },
       "ResultPath": "$.close_result",
-      "Retry": [{ "ErrorEquals": ["States.ALL"], "IntervalSeconds": 2, "MaxAttempts": 3 }],
-      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "EmergencyClose", "ResultPath": "$.error" }],
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "EmergencyClose",
+          "ResultPath": "$.error"
+        }
+      ],
       "Next": "LogAndAlert"
     },
-
     "EmergencyClose": {
       "Type": "Task",
       "Resource": "${ClosePositionFunctionArn}",
@@ -169,7 +276,6 @@
       "ResultPath": "$.close_result",
       "Next": "LogAndAlert"
     },
-
     "LogAndAlert": {
       "Type": "Task",
       "Resource": "${LogTradeFunctionArn}",
@@ -182,10 +288,10 @@
         "fill_price.$": "$.fill_result.fill_price",
         "close_price.$": "$.close_result.close_price",
         "exit_reason.$": "$.close_result.exit_reason",
+        "pnl_usd.$": "$.close_result.pnl_usd",
         "status": "CLOSED"
       },
       "End": true
     }
-
   }
 }

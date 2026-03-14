@@ -1,6 +1,10 @@
 """
 Log Trade Lambda - final trade record, updates daily P&L, fires SNS alert.
 Called as last state in both normal close and rejected/failed paths.
+
+Fix: rejection notifications now use the "rejection" event key instead of "fill".
+Previously a user who disabled fill notifications would also silently suppress
+trade rejection alerts, which are more operationally significant.
 """
 import os, json, boto3, logging
 from datetime import datetime, timezone
@@ -30,7 +34,6 @@ def handler(event, context):
 
     logger.info(f"[{trade_id}] Logging trade - status={status} pnl={pnl_usd}")
 
-    # Update final trade record
     now = datetime.now(timezone.utc).isoformat()
     try:
         trades_table.update_item(
@@ -75,9 +78,7 @@ def handler(event, context):
         except Exception as e:
             logger.error(f"Failed to update daily P&L: {e}")
 
-    # Send SNS alert if notifications are enabled
     _maybe_notify(trade_id, status, symbol, side, quantity, fill_price, close_price, pnl_usd, exit_reason)
-
     return {"logged": True, "trade_id": trade_id, "pnl_usd": pnl_usd}
 
 
@@ -88,11 +89,13 @@ def _maybe_notify(trade_id, status, symbol, side, quantity, fill_price, close_pr
             return
         events = prefs_item.get("events", {})
 
+        # FIX: rejections use the "rejection" event key (not "fill").
+        # Users who mute fill confirmations still receive rejection alerts.
         should_notify = (
-            (status == "CLOSED" and exit_reason == "STOP_HIT"  and events.get("stop_hit",  True)) or
-            (status == "CLOSED" and exit_reason == "TP_HIT"    and events.get("tp_hit",    True)) or
-            (status == "CLOSED" and events.get("fill",         False)) or
-            (status == "REJECTED"                              and events.get("fill",       False))
+            (status == "CLOSED" and exit_reason == "STOP_HIT" and events.get("stop_hit",   True))  or
+            (status == "CLOSED" and exit_reason == "TP_HIT"   and events.get("tp_hit",     True))  or
+            (status == "CLOSED"                               and events.get("fill",        False)) or
+            (status == "REJECTED"                             and events.get("rejection",   True))
         )
 
         if not should_notify:
