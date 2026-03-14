@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Trade Engine - EC2 CP Gateway, ECR, ECS Fargate dashboard, ALB
+Description: Trade Engine - EC2 CP Gateway ASG+NLB, ECR, ECS Fargate dashboard, ALB
 
 Parameters:
   StackName:
@@ -19,6 +19,8 @@ Parameters:
   PublicSubnet3:
     Type: String
   SgCpGateway:
+    Type: String
+  SgNlbCpGateway:
     Type: String
   SgFargate:
     Type: String
@@ -52,6 +54,17 @@ Parameters:
     Type: String
   AllowedGoogleEmail:
     Type: String
+  # ASG cron uses standard 5-field Unix cron (UTC).
+  # Distinct from MarketOpenUtc/MarketCloseUtc in template.yaml which use
+  # CloudWatch Events 6-field format (with ? wildcard and year) - incompatible.
+  MarketOpenAsgCron:
+    Type: String
+    Default: "0 14 * * 1-5"
+    Description: "Unix 5-field cron (UTC) to scale CP Gateway ASG to 1. Default: 9am ET Mon-Fri."
+  MarketCloseAsgCron:
+    Type: String
+    Default: "30 21 * * 1-5"
+    Description: "Unix 5-field cron (UTC) to scale CP Gateway ASG to 0. Default: 4:30pm ET Mon-Fri."
 
 # Use latest Amazon Linux 2 AMI
 Mappings:
@@ -92,7 +105,7 @@ Resources:
             }]
           }
 
-# --- EC2: CP Gateway (IB Gateway) ---
+# --- EC2: CP Gateway IAM ---
 
   Ec2Role:
     Type: AWS::IAM::Role
@@ -120,85 +133,197 @@ Resources:
     Properties:
       Roles: [!Ref Ec2Role]
 
-  CpGatewayInstance:
-    Type: AWS::EC2::Instance
+# --- EC2: CP Gateway Launch Template ---
+# Replaces the single static EC2 instance. The ASG below uses this template
+# to launch one instance at a time across all 3 private subnets.
+
+  CpGatewayLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
     Properties:
-      ImageId: !FindInMap [RegionAMI, !Ref AWS::Region, AMI]
-      InstanceType: t3.small
-      IamInstanceProfile: !Ref Ec2InstanceProfile
-      SubnetId: !Ref PrivateSubnet1
-      SecurityGroupIds: [!Ref SgCpGateway]
+      LaunchTemplateName: !Sub trade-engine-cp-gateway-${StackName}
+      LaunchTemplateData:
+        ImageId: !FindInMap [RegionAMI, !Ref AWS::Region, AMI]
+        InstanceType: t3.small
+        IamInstanceProfile:
+          Name: !Ref Ec2InstanceProfile
+        SecurityGroupIds: [!Ref SgCpGateway]
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub trade-engine-cp-gateway-${StackName}
+              - Key: project
+                Value: trade-engine
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            set -ex
+
+            # Install Docker
+            yum update -y
+            yum install -y docker aws-cli jq
+            systemctl enable docker
+            systemctl start docker
+
+            # Install docker-compose
+            curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
+              -o /usr/local/bin/docker-compose
+            chmod +x /usr/local/bin/docker-compose
+
+            # Fetch IB credentials from Secrets Manager
+            SECRET=$(aws secretsmanager get-secret-value \
+              --secret-id "${IbCredsSecretArn}" \
+              --region "${AWS::Region}" \
+              --query SecretString --output text)
+
+            IB_USERNAME=$(echo $SECRET | jq -r .username)
+            IB_PASSWORD=$(echo $SECRET | jq -r .password)
+            IB_ACCOUNT_ID=$(echo $SECRET | jq -r .account_id)
+            IB_MODE=$(echo $SECRET | jq -r .mode)
+
+            # Write IB Gateway env file
+            mkdir -p /opt/ibgateway/config
+            cat > /opt/ibgateway/config/ibgateway.env << EOF
+            TWS_USERID=$IB_USERNAME
+            TWS_PASSWORD=$IB_PASSWORD
+            TRADING_MODE=$IB_MODE
+            TWS_SETTINGS_PATH=/root/Jts
+            VNC_SERVER_PASSWORD=changeme
+            READ_ONLY_API=no
+            EOF
+
+            # Write docker-compose.yml for IB Gateway
+            mkdir -p /opt/ibgateway
+            cat > /opt/ibgateway/docker-compose.yml << 'DOCKEREOF'
+            version: "3.9"
+            services:
+              ibgateway:
+                image: ghcr.io/gnzsnz/ib-gateway:stable
+                restart: unless-stopped
+                env_file:
+                  - /opt/ibgateway/config/ibgateway.env
+                ports:
+                  - "5000:5000"
+                  - "5900:5900"
+                volumes:
+                  - ibgateway_data:/root/Jts
+            volumes:
+              ibgateway_data:
+            DOCKEREOF
+
+            # Start IB Gateway
+            cd /opt/ibgateway
+            docker-compose up -d
+
+# --- EC2: CP Gateway ASG ---
+# min=0/max=1 across all 3 private AZs.
+# ScheduledActions (below) set desired=1 at market open, desired=0 at market close.
+# If the running instance or its AZ fails, the ASG auto-heals by launching a
+# replacement in one of the other two AZs - typically within 5 minutes.
+# HealthCheckGracePeriod=600: IB Gateway needs ~5-10 min to auth with IBKR
+# before its HTTP API is meaningful; this prevents premature ASG replacement.
+
+  CpGatewayASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: !Sub trade-engine-cp-gateway-${StackName}
+      MinSize: '0'
+      MaxSize: '1'
+      DesiredCapacity: '0'
+      LaunchTemplate:
+        LaunchTemplateId: !Ref CpGatewayLaunchTemplate
+        Version: !GetAtt CpGatewayLaunchTemplate.LatestVersionNumber
+      VPCZoneIdentifier:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+        - !Ref PrivateSubnet3
+      TargetGroupARNs:
+        - !Ref CpGatewayNlbTg
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 600
       Tags:
         - Key: Name
           Value: !Sub trade-engine-cp-gateway-${StackName}
+          PropagateAtLaunch: true
         - Key: project
           Value: trade-engine
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash
-          set -ex
+          PropagateAtLaunch: true
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MaxBatchSize: 1
+        MinInstancesInService: 0  # max=1 so we can't maintain 1 healthy while replacing
+        PauseTime: PT0S
 
-          # Install Docker
-          yum update -y
-          yum install -y docker aws-cli jq
-          systemctl enable docker
-          systemctl start docker
+# --- CP Gateway: Internal NLB ---
+# Provides a stable DNS name that survives ASG instance replacement.
+# Previously CP_GATEWAY_URL was hardcoded to the EC2 private IP, which
+# changed every time the instance was replaced - breaking all callers.
 
-          # Install docker-compose
-          curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
-            -o /usr/local/bin/docker-compose
-          chmod +x /usr/local/bin/docker-compose
+  CpGatewayNlb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub te-cpgw-${StackName}
+      Type: network
+      Scheme: internal
+      Subnets:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+        - !Ref PrivateSubnet3
+      SecurityGroups:
+        - !Ref SgNlbCpGateway
+      Tags:
+        - Key: project
+          Value: trade-engine
 
-          # Fetch IB credentials from Secrets Manager
-          SECRET=$(aws secretsmanager get-secret-value \
-            --secret-id "${IbCredsSecretArn}" \
-            --region "${AWS::Region}" \
-            --query SecretString --output text)
+  CpGatewayNlbTg:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub te-cpgw-tg-${StackName}
+      VpcId: !Ref VpcId
+      Protocol: TCP
+      Port: 5000
+      TargetType: instance
+      # TCP health check: verifies port 5000 is accepting connections.
+      # IB Gateway binds the port quickly; full IBKR auth may take longer
+      # but callers handle 503s gracefully during the warm-up window.
+      HealthCheckProtocol: TCP
+      HealthCheckPort: '5000'
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
 
-          IB_USERNAME=$(echo $SECRET | jq -r .username)
-          IB_PASSWORD=$(echo $SECRET | jq -r .password)
-          IB_ACCOUNT_ID=$(echo $SECRET | jq -r .account_id)
-          IB_MODE=$(echo $SECRET | jq -r .mode)
+  CpGatewayNlbListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref CpGatewayNlb
+      Protocol: TCP
+      Port: 5000
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref CpGatewayNlbTg
 
-          # Write IB Gateway env file
-          mkdir -p /opt/ibgateway/config
-          cat > /opt/ibgateway/config/ibgateway.env << EOF
-          TWS_USERID=$IB_USERNAME
-          TWS_PASSWORD=$IB_PASSWORD
-          TRADING_MODE=$IB_MODE
-          TWS_SETTINGS_PATH=/root/Jts
-          VNC_SERVER_PASSWORD=changeme
-          READ_ONLY_API=no
-          EOF
+# --- CP Gateway: ASG Scheduled Scaling ---
+# Replaces the EventBridge ec2:StartInstances/StopInstances approach
+# (which cannot directly invoke EC2 API - it silently did nothing).
+# Cron format: standard 5-field Unix cron in UTC.
 
-          # Write docker-compose.yml for IB Gateway
-          mkdir -p /opt/ibgateway
-          cat > /opt/ibgateway/docker-compose.yml << 'DOCKEREOF'
-          version: "3.9"
-          services:
-            ibgateway:
-              image: ghcr.io/gnzsnz/ib-gateway:stable
-              restart: unless-stopped
-              env_file:
-                - /opt/ibgateway/config/ibgateway.env
-              ports:
-                - "5000:5000"
-                - "5900:5900"
-              volumes:
-                - ibgateway_data:/root/Jts
-          volumes:
-            ibgateway_data:
-          DOCKEREOF
+  CpGatewayScaleUp:
+    Type: AWS::AutoScaling::ScheduledAction
+    Properties:
+      AutoScalingGroupName: !Ref CpGatewayASG
+      MinSize: 0
+      MaxSize: 1
+      DesiredCapacity: 1
+      Recurrence: !Ref MarketOpenAsgCron
 
-          # Start IB Gateway
-          cd /opt/ibgateway
-          docker-compose up -d
-
-          # Signal completion
-          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource CpGatewayInstance --region ${AWS::Region}
-      CreationPolicy:
-        ResourceSignal:
-          Timeout: PT10M
+  CpGatewayScaleDown:
+    Type: AWS::AutoScaling::ScheduledAction
+    Properties:
+      AutoScalingGroupName: !Ref CpGatewayASG
+      MinSize: 0
+      MaxSize: 1
+      DesiredCapacity: 0
+      Recurrence: !Ref MarketCloseAsgCron
 
 # --- ECS Cluster ---
 
@@ -335,7 +460,9 @@ Resources:
             - Name: ALLOWED_GOOGLE_EMAIL
               Value: !Ref AllowedGoogleEmail
             - Name: CP_GATEWAY_URL
-              Value: !Sub "http://${CpGatewayInstance.PrivateIp}:5000"
+              # NLB DNS is stable across ASG instance replacements.
+              # Previously this was the EC2 private IP, which changed on every replacement.
+              Value: !Sub "http://${CpGatewayNlb.DNSName}:5000"
             - Name: SNS_TOPIC_ARN
               Value: !Ref SnsTopicArn
             # update ALLOWED_ORIGINS post-deploy with the CloudFront URL
@@ -349,7 +476,7 @@ Resources:
             StartPeriod: 60
           Essential: true
 
-# --- ALB ---
+# --- ALB (dashboard) ---
 
   Alb:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -468,9 +595,9 @@ Outputs:
     Value: !Ref Alb
   AlbTargetGroupArn:
     Value: !Ref AlbTargetGroup
-  Ec2InstanceId:
-    Value: !Ref CpGatewayInstance
-  Ec2PrivateIp:
-    Value: !GetAtt CpGatewayInstance.PrivateIp
+  CpGatewayAsgName:
+    Value: !Ref CpGatewayASG
+  CpGatewayNlbDns:
+    Value: !GetAtt CpGatewayNlb.DNSName
   CpGatewayUrl:
-    Value: !Sub "http://${CpGatewayInstance.PrivateIp}:5000"
+    Value: !Sub "http://${CpGatewayNlb.DNSName}:5000"

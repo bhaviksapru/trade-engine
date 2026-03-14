@@ -10,12 +10,15 @@ const LiveFeed = (() => {
     const token  = Auth.getToken();
     if (!token) return;
 
-    // Convert HTTPS API Gateway URL to WSS ALB URL
-    // WebSocket connects to ALB directly (API Gateway doesn't support WSS natively for ALB targets)
-    const wsUrl = window.CONFIG.apiUrl
-      .replace("https://", "wss://")
-      .replace(/execute-api.*amazonaws\.com\/prod/, "")
-      + `live?token=${encodeURIComponent(token)}`;
+    // CONFIG.wsUrl must point to the ALB WebSocket endpoint.
+    // API Gateway HTTP API does not support WebSocket upgrades for ALB-backed
+    // integrations, so the browser connects directly to the ALB.
+    //
+    // Format: wss://<alb-dns>:8080/live
+    //   - Port 8080 is the ALB direct HTTP listener defined in compute.yaml
+    //   - The ALB is recreated daily by alb_manager, so update config.js wsUrl
+    //     after each deploy (or use a stable Route53 alias if you add one).
+    const wsUrl = window.CONFIG.wsUrl + `?token=${encodeURIComponent(token)}`;
 
     ws = new WebSocket(wsUrl);
 

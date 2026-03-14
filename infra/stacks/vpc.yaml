@@ -271,14 +271,14 @@ Resources:
   SgLambdaWorkers:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Lambda workers - outbound to CP Gateway and VPC endpoints
+      GroupDescription: Lambda workers - outbound to CP Gateway NLB and VPC endpoints
       VpcId: !Ref VPC
       SecurityGroupEgress:
         - IpProtocol: tcp
           FromPort: 5000
           ToPort: 5000
-          DestinationSecurityGroupId: !Ref SgCpGateway
-          Description: CP Gateway API
+          DestinationSecurityGroupId: !Ref SgNlbCpGateway
+          Description: CP Gateway via internal NLB
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
@@ -288,22 +288,46 @@ Resources:
         - Key: Name
           Value: !Sub sg-lambda-workers-${StackName}
 
-  SgCpGateway:
+  # Internal NLB security group - sits in front of the CP Gateway EC2 ASG.
+  # Lambda and Fargate send traffic here; the NLB forwards to whichever EC2
+  # instance the ASG has running. Stable DNS name survives instance replacement.
+  SgNlbCpGateway:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: CP Gateway EC2 - inbound from Lambda and Fargate, SSH from desktop
+      GroupDescription: Internal NLB fronting CP Gateway - accepts port 5000 from Lambda and Fargate
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 5000
           ToPort: 5000
           SourceSecurityGroupId: !Ref SgLambdaWorkers
-          Description: Lambda workers (all 3 AZs)
+          Description: Lambda workers -> NLB
         - IpProtocol: tcp
           FromPort: 5000
           ToPort: 5000
           SourceSecurityGroupId: !Ref SgFargate
-          Description: Fargate dashboard API health checks
+          Description: Fargate dashboard -> NLB
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          DestinationSecurityGroupId: !Ref SgCpGateway
+          Description: NLB -> CP Gateway EC2 instances
+      Tags:
+        - Key: Name
+          Value: !Sub sg-nlb-cpgateway-${StackName}
+
+  SgCpGateway:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: CP Gateway EC2 ASG - inbound from NLB only, SSH from desktop
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          SourceSecurityGroupId: !Ref SgNlbCpGateway
+          Description: Internal NLB (carries Lambda and Fargate traffic)
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
@@ -344,8 +368,8 @@ Resources:
         - IpProtocol: tcp
           FromPort: 5000
           ToPort: 5000
-          DestinationSecurityGroupId: !Ref SgCpGateway
-          Description: CP Gateway health check
+          DestinationSecurityGroupId: !Ref SgNlbCpGateway
+          Description: CP Gateway via internal NLB
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
@@ -557,6 +581,8 @@ Outputs:
 
   SgLambdaWorkers:
     Value: !Ref SgLambdaWorkers
+  SgNlbCpGateway:
+    Value: !Ref SgNlbCpGateway
   SgCpGateway:
     Value: !Ref SgCpGateway
   SgFargate:
