@@ -283,9 +283,14 @@ Resources:
       Protocol: TCP
       Port: 5000
       TargetType: instance
-      # TCP health check: verifies port 5000 is accepting connections.
-      # IB Gateway binds the port quickly; full IBKR auth may take longer
-      # but callers handle 503s gracefully during the warm-up window.
+      # Client IP preservation is ON by default for instance targets. With it on,
+      # packets arrive at the EC2 with the original Lambda/Fargate source IP, which
+      # SgCpGateway does not allow (it only allows SgNlbCpGateway). Disabling it
+      # makes the NLB substitute its own node IP as source, so SgCpGateway's
+      # existing rule (allow from SgNlbCpGateway) works correctly.
+      TargetGroupAttributes:
+        - Key: preserve_client_ip.enabled
+          Value: 'false'
       HealthCheckProtocol: TCP
       HealthCheckPort: '5000'
       HealthCheckIntervalSeconds: 30
