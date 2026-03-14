@@ -81,6 +81,7 @@ Globals:
       SubnetIds:
         - !GetAtt VpcStack.Outputs.PrivateSubnet1
         - !GetAtt VpcStack.Outputs.PrivateSubnet2
+        - !GetAtt VpcStack.Outputs.PrivateSubnet3
     Environment:
       Variables:
         TRADES_TABLE: !GetAtt StorageStack.Outputs.TradesTableName
@@ -158,8 +159,10 @@ Resources:
         VpcId: !GetAtt VpcStack.Outputs.VpcId
         PrivateSubnet1: !GetAtt VpcStack.Outputs.PrivateSubnet1
         PrivateSubnet2: !GetAtt VpcStack.Outputs.PrivateSubnet2
+        PrivateSubnet3: !GetAtt VpcStack.Outputs.PrivateSubnet3
         PublicSubnet1: !GetAtt VpcStack.Outputs.PublicSubnet1
         PublicSubnet2: !GetAtt VpcStack.Outputs.PublicSubnet2
+        PublicSubnet3: !GetAtt VpcStack.Outputs.PublicSubnet3
         SgCpGateway: !GetAtt VpcStack.Outputs.SgCpGateway
         SgFargate: !GetAtt VpcStack.Outputs.SgFargate
         SgAlb: !GetAtt VpcStack.Outputs.SgAlb
@@ -400,6 +403,7 @@ Resources:
         SubnetIds:
           - !GetAtt VpcStack.Outputs.PrivateSubnet1
           - !GetAtt VpcStack.Outputs.PrivateSubnet2
+          - !GetAtt VpcStack.Outputs.PrivateSubnet3
       Environment:
         Variables:
           TRADE_LIFECYCLE_ARN: !Ref TradeLifecycleStateMachine

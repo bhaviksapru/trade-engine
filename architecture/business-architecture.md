@@ -12,9 +12,9 @@ Interactive Brokers provides the **Client Portal API Gateway** — a free, self-
 
 | | Before | After |
 |---|---|---|
-| Monthly cost | ~$100 (NinjaTrader execution) | ~$24 (AWS infrastructure) |
-| Annual cost | ~$1,200 | ~$288 |
-| **Annual saving** | | **~$912** |
+| Monthly cost | ~$100 (NinjaTrader execution) | ~$36 (AWS 3-AZ HA infrastructure) |
+| Annual cost | ~$1,200 | ~$432 |
+| **Annual saving** | | **~$768** |
 | Broker | Interactive Brokers | Interactive Brokers (unchanged) |
 | Strategy logic | NinjaTrader C# | NinjaTrader C# (unchanged) |
 | Execution | NinjaTrader → IB | AWS → IB directly |
