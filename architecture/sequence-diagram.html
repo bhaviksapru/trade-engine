@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Trade Engine - Trade Lifecycle Sequence Diagram</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#07090e;--s1:#0d1018;--s2:#12161f;--s3:#181d29;--s4:#1e2434;
+    --border:#232840;--border2:#2d3450;
+    --amber:#f5a623;--amber-dim:#8a5c0e;--amber-glow:rgba(245,166,35,.08);
+    --green:#3dd68c;--green-dim:#1a6640;
+    --red:#f75f6c;--red-dim:#7a2028;
+    --blue:#5b9cf6;--blue-dim:#1e3d7a;
+    --purple:#a78bfa;--purple-dim:#3d2a7a;
+    --teal:#34d1bf;--teal-dim:#145c54;
+    --orange:#fb923c;
+    --text:#7d899e;--text2:#a8b4c4;--white:#dde4f0;
+    --mono:'IBM Plex Mono',monospace;
+    --sans:'IBM Plex Sans',sans-serif;
+  }
+  body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:11px;padding:32px 24px;min-height:100vh;overflow-x:auto}
+
+  h1{font-size:10px;font-weight:600;color:var(--amber);letter-spacing:.22em;text-transform:uppercase;margin-bottom:3px}
+  .sub{font-size:9px;color:var(--text);letter-spacing:.1em;margin-bottom:28px}
+
+  /* ── ACTORS ── */
+  .actors{display:flex;gap:0;margin-bottom:0;align-items:flex-end;padding-left:100px}
+  .actor{width:110px;flex-shrink:0;text-align:center;padding:8px 4px 6px;border:1px solid var(--border2);background:var(--s2);cursor:default;transition:border-color .2s}
+  .actor:hover{border-color:var(--amber-dim)}
+  .actor-name{font-size:9px;font-weight:600;color:var(--white);letter-spacing:.08em;line-height:1.3}
+  .actor-sub{font-size:8px;color:var(--text);margin-top:2px;line-height:1.3}
+  .actor.ext{border-color:var(--green-dim);background:rgba(61,214,140,.05)}
+  .actor.ext .actor-name{color:var(--green)}
+  .actor.sf{border-color:var(--purple-dim);background:rgba(167,139,250,.05)}
+  .actor.sf .actor-name{color:var(--purple)}
+  .actor.data{border-color:var(--teal-dim);background:rgba(52,209,191,.05)}
+  .actor.data .actor-name{color:var(--teal)}
+  .actor.lam{border-color:var(--amber-dim);background:var(--amber-glow)}
+  .actor.lam .actor-name{color:var(--amber)}
+  .actor.ib{border-color:var(--green-dim)}
+  .actor.ui{border-color:var(--blue-dim);background:rgba(91,156,246,.05)}
+  .actor.ui .actor-name{color:var(--blue)}
+
+  /* ── LIFELINES + MESSAGES ── */
+  .diagram{position:relative;padding-left:100px}
+  .lifelines{display:flex;gap:0;position:absolute;top:0;left:100px;bottom:0;pointer-events:none}
+  .lifeline{width:110px;flex-shrink:0;display:flex;justify-content:center}
+  .lifeline-line{width:1px;background:var(--border2);height:100%}
+
+  /* Each row = one message */
+  .msg-row{display:flex;align-items:center;min-height:28px;position:relative;padding:2px 0}
+  .msg-row.group-start{margin-top:12px}
+
+  /* Label in left gutter */
+  .row-label{width:100px;flex-shrink:0;padding-right:10px;text-align:right;font-size:8px;color:var(--text);line-height:1.4;align-self:center}
+  .row-label.phase{font-size:8px;font-weight:600;color:var(--amber);letter-spacing:.1em;text-transform:uppercase}
+
+  /* The horizontal message arrow area spans all lifelines */
+  .row-content{display:flex;align-items:center;position:relative;height:100%}
+
+  /* Spacer cells each 110px wide (one per actor) */
+  .cell{width:110px;flex-shrink:0;position:relative;display:flex;align-items:center;justify-content:center}
+
+  /* Arrow line + head */
+  .arrow{position:absolute;top:50%;transform:translateY(-50%);height:1px;display:flex;align-items:center}
+  .arrow-line{height:1px;flex:1}
+  .arrow-head{font-size:8px;line-height:1}
+
+  /* sync call = solid amber */
+  .arrow.sync .arrow-line{background:var(--amber)}
+  .arrow.sync .arrow-head{color:var(--amber)}
+  /* return = dashed green */
+  .arrow.ret .arrow-line{background:none;border-top:1px dashed var(--green)}
+  .arrow.ret .arrow-head{color:var(--green)}
+  /* internal = dashed purple */
+  .arrow.int .arrow-line{background:none;border-top:1px dashed var(--purple)}
+  .arrow.int .arrow-head{color:var(--purple)}
+  /* fail = dashed red */
+  .arrow.fail .arrow-line{background:none;border-top:1px dashed var(--red)}
+  .arrow.fail .arrow-head{color:var(--red)}
+  /* data write = dashed teal */
+  .arrow.db .arrow-line{background:none;border-top:1px dashed var(--teal)}
+  .arrow.db .arrow-head{color:var(--teal)}
+  /* event = dashed blue */
+  .arrow.evt .arrow-line{background:none;border-top:1px dashed var(--blue)}
+  .arrow.evt .arrow-head{color:var(--blue)}
+
+  /* Message label floated above/below the line */
+  .msg-label{position:absolute;font-size:8.5px;white-space:nowrap;pointer-events:none}
+  .msg-label.above{bottom:calc(50% + 3px);color:var(--text2)}
+  .msg-label.below{top:calc(50% + 3px);color:var(--text)}
+  .msg-label .ok{color:var(--green)}
+  .msg-label .bad{color:var(--red)}
+  .msg-label .note{color:var(--amber)}
+  .msg-label code{background:var(--s3);padding:0 3px;font-family:var(--mono);font-size:8px}
+
+  /* Activation box on a lifeline */
+  .activation{position:absolute;width:8px;background:var(--s3);border:1px solid var(--border2);transform:translateX(-50%);z-index:2}
+  .activation.amber-a{border-color:var(--amber-dim);background:var(--amber-glow)}
+  .activation.purple-a{border-color:var(--purple-dim);background:rgba(167,139,250,.08)}
+
+  /* Fragment (loop / alt / opt boxes) */
+  .fragment{border:1px solid var(--border2);margin:6px 0;position:relative}
+  .fragment-label{position:absolute;top:-1px;left:0;font-size:8px;font-weight:600;padding:1px 6px;letter-spacing:.1em;text-transform:uppercase}
+  .fragment.loop .fragment-label{background:var(--purple-dim);color:var(--purple)}
+  .fragment.alt  .fragment-label{background:var(--blue-dim);  color:var(--blue)}
+  .fragment.opt  .fragment-label{background:var(--s3);        color:var(--text)}
+  .fragment.par  .fragment-label{background:var(--teal-dim);  color:var(--teal)}
+  .fragment-inner{padding:18px 0 4px}
+  .fragment-divider{border-top:1px dashed var(--border2);margin:4px 0;padding-top:4px;font-size:8px;color:var(--text);padding-left:8px}
+
+  /* Note box */
+  .note-box{background:var(--s2);border:1px solid var(--amber-dim);padding:6px 10px;font-size:8.5px;color:var(--text2);line-height:1.6;margin:6px 0 6px 100px;max-width:500px}
+  .note-box strong{color:var(--amber);font-weight:500}
+
+  /* Phase separator */
+  .phase-sep{display:flex;align-items:center;gap:12px;margin:16px 0 8px;padding-left:100px}
+  .phase-sep-line{flex:1;height:1px;background:var(--border)}
+  .phase-sep-label{font-size:8px;font-weight:600;color:var(--amber);letter-spacing:.18em;text-transform:uppercase;white-space:nowrap}
+
+  /* Legend */
+  .legend{display:flex;gap:20px;flex-wrap:wrap;margin-top:24px;padding-top:16px;border-top:1px solid var(--border);padding-left:100px}
+  .li{display:flex;align-items:center;gap:7px;font-size:8.5px;color:var(--text)}
+  .li-line{width:24px;height:1px}
+  .li-line.sync{background:var(--amber)}
+  .li-line.ret{border-top:1px dashed var(--green)}
+  .li-line.fail{border-top:1px dashed var(--red)}
+  .li-line.db{border-top:1px dashed var(--teal)}
+  .li-line.evt{border-top:1px dashed var(--blue)}
+  .li-line.int{border-top:1px dashed var(--purple)}
+</style>
+</head>
+<body>
+
+<h1>Trade Lifecycle — Sequence Diagram</h1>
+<p class="sub">trade-engine · dynamic view · happy path + key failure paths · component interactions over time</p>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     ACTOR HEADERS
+═══════════════════════════════════════════════════════════════════ -->
+<div class="actors">
+  <div class="actor ui">
+    <div class="actor-name">NinjaTrader</div>
+    <div class="actor-sub">Strategy.cs<br/>OrchestratorClient</div>
+  </div>
+  <div class="actor ui">
+    <div class="actor-name">API Gateway</div>
+    <div class="actor-sub">HTTP API<br/>+ Authorizer λ</div>
+  </div>
+  <div class="actor lam">
+    <div class="actor-name">Signal λ</div>
+    <div class="actor-sub">ingestion</div>
+  </div>
+  <div class="actor sf">
+    <div class="actor-name">Step Functions</div>
+    <div class="actor-sub">Standard WF</div>
+  </div>
+  <div class="actor lam">
+    <div class="actor-name">Trade Lambdas</div>
+    <div class="actor-sub">risk / order / fill<br/>stop / check / close</div>
+  </div>
+  <div class="actor ext">
+    <div class="actor-name">CP Gateway</div>
+    <div class="actor-sub">EC2 :5000<br/>IBKR Java app</div>
+  </div>
+  <div class="actor ext ib">
+    <div class="actor-name">IBKR</div>
+    <div class="actor-sub">exchange<br/>fill engine</div>
+  </div>
+  <div class="actor data">
+    <div class="actor-name">DynamoDB</div>
+    <div class="actor-sub">trades / config<br/>daily_pnl</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     INLINE SVG SEQUENCE — drawn as one SVG for precision
+═══════════════════════════════════════════════════════════════════ -->
+<svg id="seq" xmlns="http://www.w3.org/2000/svg"
+     width="1090" viewBox="0 0 1090 1560"
+     style="display:block;margin-left:100px;margin-top:0;font-family:'IBM Plex Mono',monospace">
+
+  <defs>
+    <!-- Arrow heads -->
+    <marker id="ah-amber" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#f5a623"/>
+    </marker>
+    <marker id="ah-green" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#3dd68c"/>
+    </marker>
+    <marker id="ah-red" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#f75f6c"/>
+    </marker>
+    <marker id="ah-teal" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#34d1bf"/>
+    </marker>
+    <marker id="ah-blue" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#5b9cf6"/>
+    </marker>
+    <marker id="ah-purple" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#a78bfa"/>
+    </marker>
+    <marker id="ah-orange" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#fb923c"/>
+    </marker>
+  </defs>
+
+  <!-- Column centres (0-indexed, relative to SVG left edge which = actor col 0 left)
+       col0=NT:55  col1=APIGW:165  col2=Signal:275  col3=SF:385  col4=Lambdas:495  col5=CPG:605  col6=IBKR:715  col7=DDB:825
+       Each actor width=110, centre offset=55 -->
+  <g id="cols">
+    <!-- lifelines -->
+    <line x1="55"  y1="0" x2="55"  y2="1560" stroke="#232840" stroke-width="1"/>
+    <line x1="165" y1="0" x2="165" y2="1560" stroke="#232840" stroke-width="1"/>
+    <line x1="275" y1="0" x2="275" y2="1560" stroke="#232840" stroke-width="1"/>
+    <line x1="385" y1="0" x2="385" y2="1560" stroke="#232840" stroke-width="1"/>
+    <line x1="495" y1="0" x2="495" y2="1560" stroke="#232840" stroke-width="1"/>
+    <line x1="605" y1="0" x2="605" y2="1560" stroke="#232840" stroke-width="1"/>
+    <line x1="715" y1="0" x2="715" y2="1560" stroke="#232840" stroke-width="1"/>
+    <line x1="825" y1="0" x2="825" y2="1560" stroke="#232840" stroke-width="1"/>
+  </g>
+
+  <!-- ─────────────────────────────────────────────
+       PHASE 1 — SIGNAL INGESTION
+  ──────────────────────────────────────────────── -->
+  <text x="0" y="22" fill="#f5a623" font-size="8" font-weight="600" letter-spacing="2">① SIGNAL INGESTION</text>
+  <line x1="0" y1="26" x2="880" y2="26" stroke="#232840" stroke-width="1"/>
+
+  <!-- [1] NT → APIGW: HTTPS POST /signal -->
+  <line x1="55" y1="50" x2="158" y2="50" stroke="#f5a623" stroke-width="1.2" marker-end="url(#ah-amber)"/>
+  <text x="58" y="46" fill="#a8b4c4" font-size="8">HTTPS POST /signal  {strategy_id, symbol, side, qty}</text>
+
+  <!-- [2] APIGW: authorizer check -->
+  <rect x="158" y="40" width="14" height="20" fill="#1e2434" stroke="#2d3450" stroke-width="1"/>
+  <text x="106" y="70" fill="#7d899e" font-size="8">API key + IP check</text>
+
+  <!-- [2a] fail path - dashed -->
+  <line x1="165" y1="80" x2="60" y2="80" stroke="#f75f6c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-red)"/>
+  <text x="75" y="76" fill="#f75f6c" font-size="8">403 Forbidden</text>
+
+  <!-- [3] APIGW → Signal λ -->
+  <line x1="172" y1="95" x2="268" y2="95" stroke="#f5a623" stroke-width="1.2" marker-end="url(#ah-amber)"/>
+  <text x="175" y="91" fill="#a8b4c4" font-size="8">invoke(event)</text>
+
+  <!-- [4] Signal λ reads trading_enabled -->
+  <line x1="275" y1="110" x2="818" y2="110" stroke="#34d1bf" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#ah-teal)"/>
+  <text x="490" y="106" fill="#34d1bf" font-size="8">GetItem pk=trading_enabled</text>
+  <line x1="818" y1="122" x2="282" y2="122" stroke="#34d1bf" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#ah-teal)"/>
+  <text x="490" y="119" fill="#34d1bf" font-size="8">{value:true}</text>
+
+  <!-- [5] Signal λ → SF: StartExecution -->
+  <line x1="275" y1="138" x2="378" y2="138" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#ah-purple)"/>
+  <text x="278" y="134" fill="#a8b4c4" font-size="8">StartExecution({trade_id, symbol, side, qty, strategy_id, chain_count:0})</text>
+
+  <!-- [6] Signal writes trade record status=PENDING -->
+  <line x1="275" y1="152" x2="818" y2="152" stroke="#34d1bf" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#ah-teal)"/>
+  <text x="410" y="148" fill="#34d1bf" font-size="8">PutItem  trade_id, status=PENDING, execution_arn</text>
+
+  <!-- [7] Signal → return 202 -->
+  <line x1="268" y1="168" x2="62" y2="168" stroke="#3dd68c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-green)"/>
+  <text x="70" y="164" fill="#3dd68c" font-size="8">202 Accepted  {trade_id, execution_arn}</text>
+
+  <!-- ─────────────────────────────────────────────
+       PHASE 2 — PRE-TRADE RISK
+  ──────────────────────────────────────────────── -->
+  <text x="0" y="196" fill="#f5a623" font-size="8" font-weight="600" letter-spacing="2">② PRE-TRADE RISK  [risk_check λ]</text>
+  <line x1="0" y1="200" x2="880" y2="200" stroke="#232840" stroke-width="1"/>
+
+  <!-- SF invokes risk_check -->
+  <line x1="385" y1="218" x2="488" y2="218" stroke="#f5a623" stroke-width="1.2" marker-end="url(#ah-amber)"/>
+  <text x="388" y="214" fill="#a8b4c4" font-size="8">invoke risk_check({trade_id, strategy_id, symbol, side, qty})</text>
+
+  <!-- risk_check reads trading_enabled -->
+  <line x1="495" y1="232" x2="818" y2="232" stroke="#34d1bf" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#ah-teal)"/>
+  <text x="558" y="228" fill="#34d1bf" font-size="8">GetItem pk=trading_enabled</text>
+  <line x1="495" y1="244" x2="818" y2="244" stroke="#34d1bf" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#ah-teal)"/>
+  <text x="558" y="240" fill="#34d1bf" font-size="8">GetItem pk=risk_parameters</text>
+  <line x1="495" y1="256" x2="818" y2="256" stroke="#34d1bf" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#ah-teal)"/>
+  <text x="558" y="252" fill="#34d1bf" font-size="8">GetItem pk=daily_pnl#today</text>
+  <!-- query in-flight count - all 4 statuses -->
+  <line x1="495" y1="268" x2="818" y2="268" stroke="#34d1bf" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#ah-teal)"/>
+  <text x="510" y="264" fill="#34d1bf" font-size="8">Query StatusIndex: PENDING + PENDING_FILL + FILLED + OPEN  (in-flight count)</text>
+
+  <!-- ALT fragment: reject or pass -->
+  <rect x="380" y="278" width="500" height="66" fill="none" stroke="#1e3d7a" stroke-width="1"/>
+  <rect x="380" y="278" width="26" height="12" fill="#1e3d7a"/>
+  <text x="382" y="288" fill="#5b9cf6" font-size="8" font-weight="600">ALT</text>
+
+  <!-- reject path -->
+  <text x="385" y="300" fill="#7d899e" font-size="8">[daily loss hit OR position limit OR outside RTH OR qty invalid]</text>
+  <line x1="488" y1="310" x2="392" y2="310" stroke="#f75f6c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-red)"/>
+  <text x="405" y="306" fill="#f75f6c" font-size="8">{approved:false, reason:…}  →  SF → RejectedLog → log_trade λ → SNS</text>
+
+  <!-- divider -->
+  <line x1="380" y1="320" x2="880" y2="320" stroke="#1e3d7a" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="385" y="332" fill="#7d899e" font-size="8">[all checks pass]</text>
+  <line x1="488" y1="340" x2="392" y2="340" stroke="#3dd68c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-green)"/>
+  <text x="405" y="336" fill="#3dd68c" font-size="8">{approved:true}</text>
+
+  <!-- ─────────────────────────────────────────────
+       PHASE 3 — PLACE ORDER
+  ──────────────────────────────────────────────── -->
+  <text x="0" y="362" fill="#f5a623" font-size="8" font-weight="600" letter-spacing="2">③ PLACE ORDER  [place_order λ]</text>
+  <line x1="0" y1="366" x2="880" y2="366" stroke="#232840" stroke-width="1"/>
+
+  <!-- SF → place_order -->
+  <line x1="385" y1="382" x2="488" y2="382" stroke="#f5a623" stroke-width="1.2" marker-end="url(#ah-amber)"/>
+  <text x="388" y="378" fill="#a8b4c4" font-size="8">invoke place_order({trade_id, symbol, side, qty, order_type, limit_price})</text>
+
+  <!-- resolve account_id -->
+  <line x1="495" y1="396" x2="598" y2="396" stroke="#f5a623" stroke-width="1.2" marker-end="url(#ah-amber)"/>
+  <text x="498" y="392" fill="#a8b4c4" font-size="8">GET /portfolio/accounts</text>
+  <line x1="598" y1="408" x2="502" y2="408" stroke="#3dd68c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-green)"/>
+  <text x="510" y="404" fill="#3dd68c" font-size="8">[{accountId:…}]</text>
+
+  <!-- resolve conid (secType=FUT) -->
+  <line x1="495" y1="420" x2="598" y2="420" stroke="#f5a623" stroke-width="1.2" marker-end="url(#ah-amber)"/>
+  <text x="498" y="416" fill="#a8b4c4" font-size="8">GET /iserver/secdef/search  {symbol, secType:FUT}</text>
+  <line x1="598" y1="432" x2="502" y2="432" stroke="#3dd68c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-green)"/>
+  <text x="510" y="428" fill="#3dd68c" font-size="8">[{conid:…}]  front-month MES</text>
+
+  <!-- POST order to IBKR via CPG -->
+  <line x1="495" y1="446" x2="598" y2="446" stroke="#f5a623" stroke-width="1.2" marker-end="url(#ah-amber)"/>
+  <text x="498" y="442" fill="#a8b4c4" font-size="8">POST /iserver/account/{id}/orders  {conid, orderType, side, qty, tif:DAY}</text>
+  <line x1="605" y1="450" x2="708" y2="450" stroke="#f5a623" stroke-width="1" stroke-dasharray="2,2" marker-end="url(#ah-amber)"/>
+  <text x="612" y="446" fill="#a8b4c4" font-size="8">route to exchange</text>
+  <line x1="708" y1="460" x2="612" y2="460" stroke="#3dd68c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-green)"/>
+  <text x="615" y="456" fill="#3dd68c" font-size="8">[{order_id:…}]</text>
+  <line x1="598" y1="470" x2="502" y2="470" stroke="#3dd68c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-green)"/>
+  <text x="510" y="466" fill="#3dd68c" font-size="8">[{order_id:ib_order_id}]</text>
+
+  <!-- update DDB: PENDING_FILL -->
+  <line x1="495" y1="484" x2="818" y2="484" stroke="#34d1bf" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#ah-teal)"/>
+  <text x="540" y="480" fill="#34d1bf" font-size="8">UpdateItem  ib_order_id, status=PENDING_FILL</text>
+
+  <line x1="488" y1="496" x2="392" y2="496" stroke="#3dd68c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-green)"/>
+  <text x="398" y="492" fill="#3dd68c" font-size="8">{ib_order_id, conid}</text>
+
+  <!-- ─────────────────────────────────────────────
+       PHASE 4 — WAIT FOR FILL
+  ──────────────────────────────────────────────── -->
+  <text x="0" y="518" fill="#f5a623" font-size="8" font-weight="600" letter-spacing="2">④ WAIT FOR FILL  [wait_for_fill λ — retried by SF up to 15×]</text>
+  <line x1="0" y1="522" x2="880" y2="522" stroke="#232840" stroke-width="1"/>
+
+  <!-- LOOP fragment -->
+  <rect x="380" y="530" width="500" height="90" fill="none" stroke="#3d2a7a" stroke-width="1"/>
+  <rect x="380" y="530" width="30" height="12" fill="#3d2a7a"/>
+  <text x="382" y="540" fill="#a78bfa" font-size="8" font-weight="600">LOOP</text>
+  <text x="414" y="540" fill="#7d899e" font-size="8">  retry interval 2s, max 15 attempts  (SF TimeoutSeconds:60)</text>
+
+  <line x1="385" y1="552" x2="488" y2="552" stroke="#f5a623" stroke-width="1.2" marker-end="url(#ah-amber)"/>
+  <text x="388" y="548" fill="#a8b4c4" font-size="8">invoke wait_for_fill({trade_id, ib_order_id, symbol})</text>
+
+  <!-- poll orders -->
+  <line x1="495" y1="566" x2="598" y2="566" stroke="#f5a623" stroke-width="1.2" marker-end="url(#ah-amber)"/>
+  <text x="498" y="562" fill="#a8b4c4" font-size="8">GET /iserver/account/orders  {filters:filled,inactive}</text>
+
+  <!-- ALT inside loop -->
+  <text x="388" y="582" fill="#7d899e" font-size="8">[status=filled]  →  update DDB: fill_price, fill_time, status=FILLED  →  return fill data</text>
+  <text x="388" y="596" fill="#7d899e" font-size="8">[status=cancelled|inactive]  →  raise FillTimeout  →  SF → CancelOrder → OrderFailedLog</text>
+  <text x="388" y="610" fill="#7d899e" font-size="8">[not in list yet]  →  raise FillPending  →  SF retries after 2s</text>
+
+  <!-- ─────────────────────────────────────────────
+       PHASE 5 — SET STOP
+  ──────────────────────────────────────────────── -->
+  <text x="0" y="638" fill="#f5a623" font-size="8" font-weight="600" letter-spacing="2">⑤ SET PROTECTIVE STOP  [set_stop λ]</text>
+  <line x1="0" y1="642" x2="880" y2="642" stroke="#232840" stroke-width="1"/>
+
+  <line x1="385" y1="658" x2="488" y2="658" stroke="#f5a623" stroke-width="1.2" marker-end="url(#ah-amber)"/>
+  <text x="388" y="654" fill="#a8b4c4" font-size="8">invoke set_stop({trade_id, symbol, side, qty, fill_price, strategy_id})</text>
+
+  <!-- calc stop / tp -->
+  <text x="498" y="672" fill="#7d899e" font-size="8">calc: stop = fill ± 14 ticks (3.50pts) · tp_target = fill ± 18 ticks (4.50pts)  snapped to 0.25 tick</text>
+
+  <!-- place GTC stop at IB -->
+  <line x1="495" y1="684" x2="598" y2="684" stroke="#f5a623" stroke-width="1.2" marker-end="url(#ah-amber)"/>
+  <text x="498" y="680" fill="#a8b4c4" font-size="8">POST /orders  {orderType:STP, side:opp, price:stop_price, tif:GTC}</text>
+  <line x1="605" y1="688" x2="708" y2="688" stroke="#f5a623" stroke-width="1" stroke-dasharray="2,2" marker-end="url(#ah-amber)"/>
+  <line x1="708" y1="698" x2="612" y2="698" stroke="#3dd68c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-green)"/>
+  <text x="615" y="694" fill="#3dd68c" font-size="8">[{order_id:stop_order_id}]</text>
+  <line x1="598" y1="708" x2="502" y2="708" stroke="#3dd68c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-green)"/>
+
+  <!-- update DDB: OPEN -->
+  <line x1="495" y1="720" x2="818" y2="720" stroke="#34d1bf" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#ah-teal)"/>
+  <text x="510" y="716" fill="#34d1bf" font-size="8">UpdateItem  stop_loss_price, take_profit_price, stop_order_id, status=OPEN</text>
+
+  <line x1="488" y1="732" x2="392" y2="732" stroke="#3dd68c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-green)"/>
+  <text x="398" y="728" fill="#3dd68c" font-size="8">{stop_loss_price, take_profit_price, stop_order_id}</text>
+
+  <!-- ─────────────────────────────────────────────
+       PHASE 6 — MONITORING LOOP (nested Express WF)
+  ──────────────────────────────────────────────── -->
+  <text x="0" y="756" fill="#f5a623" font-size="8" font-weight="600" letter-spacing="2">⑥ MONITORING LOOP  [nested Express WF · check_price λ every 5s · chains at 270s]</text>
+  <line x1="0" y1="760" x2="880" y2="760" stroke="#232840" stroke-width="1"/>
+
+  <!-- SF startExecution.sync:2 -->
+  <line x1="385" y1="776" x2="488" y2="776" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#ah-purple)"/>
+  <text x="388" y="772" fill="#a8b4c4" font-size="8">StartExecution.sync:2  monitoring_loop  {trade_id, symbol, fill_price, fill_time, stop_loss_price, take_profit_price}</text>
+
+  <!-- LOOP fragment: price check -->
+  <rect x="380" y="784" width="500" height="136" fill="none" stroke="#3d2a7a" stroke-width="1"/>
+  <rect x="380" y="784" width="30" height="12" fill="#3d2a7a"/>
+  <text x="382" y="794" fill="#a78bfa" font-size="8" font-weight="600">LOOP</text>
+  <text x="414" y="794" fill="#7d899e" font-size="8">  every 5s (Wait state) while no exit condition</text>
+
+  <!-- check_price λ -->
+  <line x1="385" y1="806" x2="488" y2="806" stroke="#f5a623" stroke-width="1.2" marker-end="url(#ah-amber)"/>
+  <text x="388" y="802" fill="#a8b4c4" font-size="8">invoke check_price({…, execution_start:$$.Execution.StartTime})</text>
+
+  <!-- fetch price -->
+  <line x1="495" y1="820" x2="598" y2="820" stroke="#f5a623" stroke-width="1.2" marker-end="url(#ah-amber)"/>
+  <text x="498" y="816" fill="#a8b4c4" font-size="8">GET /iserver/marketdata/snapshot  {conids, fields:31,84,86}  (last/bid/ask)</text>
+  <line x1="598" y1="832" x2="502" y2="832" stroke="#3dd68c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-green)"/>
+  <text x="510" y="828" fill="#3dd68c" font-size="8">[{31:current_price}]</text>
+
+  <!-- heartbeat + EventBridge -->
+  <line x1="495" y1="846" x2="818" y2="846" stroke="#34d1bf" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#ah-teal)"/>
+  <text x="540" y="842" fill="#34d1bf" font-size="8">UpdateItem  last_heartbeat, unrealized_pnl</text>
+  <line x1="495" y1="858" x2="818" y2="858" stroke="#5b9cf6" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#ah-blue)"/>
+  <text x="510" y="854" fill="#5b9cf6" font-size="8">PutEvents  EventBus:trade-engine-events  {PriceUpdate, current_price, unrealized_pnl}</text>
+
+  <!-- exit conditions -->
+  <text x="388" y="874" fill="#7d899e" font-size="8">[stop_hit|tp_hit|timeout|should_chain]  →  Express WF exits with {exit_reason, exit_price}</text>
+  <line x1="488" y1="882" x2="392" y2="882" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-purple)"/>
+  <text x="398" y="878" fill="#a78bfa" font-size="8">→ Standard WF: MonitoringDecision  SHOULD_CHAIN → IncrementChainCount → StartMonitoring again</text>
+  <text x="498" y="893" fill="#7d899e" font-size="8">  else (STOP_HIT|TP_HIT|TIMEOUT|ERROR) → ClosePosition</text>
+
+  <!-- ─────────────────────────────────────────────
+       PHASE 7 — CLOSE POSITION
+  ──────────────────────────────────────────────── -->
+  <text x="0" y="940" fill="#f5a623" font-size="8" font-weight="600" letter-spacing="2">⑦ CLOSE POSITION  [close_position λ]</text>
+  <line x1="0" y1="944" x2="880" y2="944" stroke="#232840" stroke-width="1"/>
+
+  <line x1="385" y1="960" x2="488" y2="960" stroke="#f5a623" stroke-width="1.2" marker-end="url(#ah-amber)"/>
+  <text x="388" y="956" fill="#a8b4c4" font-size="8">invoke close_position({trade_id, symbol, side, qty, exit_reason, action:CLOSE})</text>
+
+  <!-- cancel GTC stop — always -->
+  <line x1="495" y1="974" x2="818" y2="974" stroke="#34d1bf" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#ah-teal)"/>
+  <text x="540" y="970" fill="#34d1bf" font-size="8">GetItem  trade_id  (read stop_order_id)</text>
+  <line x1="495" y1="988" x2="598" y2="988" stroke="#fb923c" stroke-width="1.2" marker-end="url(#ah-orange)"/>
+  <text x="498" y="984" fill="#fb923c" font-size="8">DELETE /iserver/account/{id}/order/{stop_order_id}  ← always, swallows 404</text>
+  <line x1="605" y1="992" x2="708" y2="992" stroke="#fb923c" stroke-width="1" stroke-dasharray="2,2" marker-end="url(#ah-orange)"/>
+  <line x1="708" y1="1002" x2="612" y2="1002" stroke="#3dd68c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-green)"/>
+  <text x="615" y="998" fill="#3dd68c" font-size="8">200 | 404 (already gone)</text>
+
+  <!-- MKT close -->
+  <line x1="495" y1="1016" x2="598" y2="1016" stroke="#f5a623" stroke-width="1.2" marker-end="url(#ah-amber)"/>
+  <text x="498" y="1012" fill="#a8b4c4" font-size="8">POST /orders  {orderType:MKT, side:opp, qty, tif:DAY}  market close</text>
+  <line x1="605" y1="1020" x2="708" y2="1020" stroke="#f5a623" stroke-width="1" stroke-dasharray="2,2" marker-end="url(#ah-amber)"/>
+  <line x1="708" y1="1030" x2="612" y2="1030" stroke="#3dd68c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-green)"/>
+  <text x="615" y="1026" fill="#3dd68c" font-size="8">filled</text>
+
+  <!-- get close price + calc PnL -->
+  <line x1="495" y1="1044" x2="598" y2="1044" stroke="#f5a623" stroke-width="1.2" marker-end="url(#ah-amber)"/>
+  <text x="498" y="1040" fill="#a8b4c4" font-size="8">GET /snapshot  field:31  (close_price)</text>
+  <line x1="598" y1="1056" x2="502" y2="1056" stroke="#3dd68c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-green)"/>
+  <text x="510" y="1052" fill="#3dd68c" font-size="8">calc pnl = (close_price − fill_price) × qty  [BUY]; reversed for SELL</text>
+
+  <!-- update DDB CLOSED + clear positions -->
+  <line x1="495" y1="1070" x2="818" y2="1070" stroke="#34d1bf" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#ah-teal)"/>
+  <text x="510" y="1066" fill="#34d1bf" font-size="8">UpdateItem  close_price, close_time, exit_reason, status=CLOSED, pnl_usd</text>
+
+  <line x1="488" y1="1084" x2="392" y2="1084" stroke="#3dd68c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-green)"/>
+  <text x="398" y="1080" fill="#3dd68c" font-size="8">{close_price, exit_reason, pnl_usd}</text>
+
+  <!-- ─────────────────────────────────────────────
+       PHASE 8 — LOG & ALERT
+  ──────────────────────────────────────────────── -->
+  <text x="0" y="1108" fill="#f5a623" font-size="8" font-weight="600" letter-spacing="2">⑧ LOG &amp; ALERT  [log_trade λ]</text>
+  <line x1="0" y1="1112" x2="880" y2="1112" stroke="#232840" stroke-width="1"/>
+
+  <line x1="385" y1="1128" x2="488" y2="1128" stroke="#f5a623" stroke-width="1.2" marker-end="url(#ah-amber)"/>
+  <text x="388" y="1124" fill="#a8b4c4" font-size="8">invoke log_trade({trade_id, strategy_id, symbol, side, qty, fill_price, close_price, exit_reason, pnl_usd, status:CLOSED})</text>
+
+  <!-- update trade record final -->
+  <line x1="495" y1="1142" x2="818" y2="1142" stroke="#34d1bf" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#ah-teal)"/>
+  <text x="540" y="1138" fill="#34d1bf" font-size="8">UpdateItem  final status, pnl_usd, logged_at</text>
+
+  <!-- update daily_pnl -->
+  <line x1="495" y1="1156" x2="818" y2="1156" stroke="#34d1bf" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#ah-teal)"/>
+  <text x="510" y="1152" fill="#34d1bf" font-size="8">UpdateItem pk=daily_pnl#today  ADD total_pnl, trade_count, win_count|loss_count</text>
+
+  <!-- read notification prefs -->
+  <line x1="495" y1="1170" x2="818" y2="1170" stroke="#34d1bf" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#ah-teal)"/>
+  <text x="558" y="1166" fill="#34d1bf" font-size="8">GetItem pk=notification_preferences</text>
+
+  <!-- OPT: SNS -->
+  <rect x="380" y="1180" width="500" height="34" fill="none" stroke="#252a38" stroke-width="1"/>
+  <rect x="380" y="1180" width="26" height="12" fill="#1a1e28"/>
+  <text x="382" y="1190" fill="#7d899e" font-size="8" font-weight="600">OPT</text>
+  <text x="412" y="1190" fill="#7d899e" font-size="8">  [notifications.enabled AND events.stop_hit|tp_hit|rejection]</text>
+  <line x1="495" y1="1204" x2="818" y2="1204" stroke="#5b9cf6" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#ah-blue)"/>
+  <text x="540" y="1200" fill="#5b9cf6" font-size="8">SNS.Publish → SMS alert to phone</text>
+
+  <line x1="488" y1="1226" x2="392" y2="1226" stroke="#3dd68c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-green)"/>
+  <text x="398" y="1222" fill="#3dd68c" font-size="8">{logged:true, pnl_usd}  — Standard WF execution SUCCEEDED</text>
+
+  <!-- ─────────────────────────────────────────────
+       BACKGROUND SAFETY NET (parallel)
+  ──────────────────────────────────────────────── -->
+  <text x="0" y="1256" fill="#f75f6c" font-size="8" font-weight="600" letter-spacing="2">⑨ BACKGROUND SAFETY NET  [always running, parallel to lifecycle]</text>
+  <line x1="0" y1="1260" x2="880" y2="1260" stroke="#2a1215" stroke-width="1"/>
+
+  <!-- tickle -->
+  <line x1="385" y1="1276" x2="598" y2="1276" stroke="#f75f6c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-red)"/>
+  <text x="388" y="1272" fill="#f75f6c" font-size="8">Tickle λ (every 55s) → POST /tickle  keep CP Gateway session alive</text>
+
+  <!-- portfolio_risk -->
+  <line x1="385" y1="1294" x2="818" y2="1294" stroke="#f75f6c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-red)"/>
+  <text x="388" y="1290" fill="#f75f6c" font-size="8">Portfolio Risk λ (every 60s) → Query StatusIndex:OPEN → sum realized+unrealized PnL</text>
+  <text x="388" y="1305" fill="#f75f6c" font-size="8">   [if total_pnl ≤ −limit]  → StopExecution all open WFs  →  cancel stop orders  →  MKT close all  →  trading_enabled=false  →  SNS</text>
+
+  <!-- dead man -->
+  <line x1="385" y1="1322" x2="818" y2="1322" stroke="#f75f6c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah-red)"/>
+  <text x="388" y="1318" fill="#f75f6c" font-size="8">Dead Man λ (every 5min 24/7) → Query StatusIndex:OPEN → check last_heartbeat</text>
+  <text x="388" y="1333" fill="#f75f6c" font-size="8">   [heartbeat &gt; 15min stale]  → StopExecution  →  cancel stop  →  MKT close  →  trading_enabled=false  →  SNS</text>
+
+  <!-- ALB Manager -->
+  <text x="388" y="1354" fill="#a8b4c4" font-size="8">ALB Manager λ (market open/close EventBridge rules):  START → create ALB + update CloudFront origin  |  STOP → delete ALB</text>
+
+  <!-- end line -->
+  <line x1="0" y1="1365" x2="880" y2="1365" stroke="#232840" stroke-width="1"/>
+
+</svg>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="li"><div class="li-line sync"></div>Synchronous call</div>
+  <div class="li"><div class="li-line ret"></div>Return / response</div>
+  <div class="li"><div class="li-line db"></div>DynamoDB read/write</div>
+  <div class="li"><div class="li-line evt"></div>EventBridge / SNS event</div>
+  <div class="li"><div class="li-line int"></div>Step Functions internal</div>
+  <div class="li"><div class="li-line fail"></div>Failure / emergency path</div>
+  <div style="margin-left:auto;font-size:8px;color:var(--text)">All Lambda→CP Gateway calls are HTTP within VPC private subnet · All IB credentials from Secrets Manager</div>
+</div>
+
+</body>
+</html>

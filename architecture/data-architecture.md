@@ -23,10 +23,13 @@ Attributes:
   fill_price        Number   actual fill price
   fill_time         String   ISO timestamp
   stop_loss_price   Number
+  take_profit_price Number   calculated TP level (not placed as IB order — monitored by check_price)
   stop_order_id     String   IB stop order ID
   close_price       Number   exit price
   close_time        String   ISO timestamp
-  exit_reason       String   "STOP_HIT" | "TP_HIT" | "TIMEOUT" | "MANUAL" | "EMERGENCY"
+  exit_reason       String   "STOP_HIT" | "TP_HIT" | "TIMEOUT" | "MANUAL" | "EMERGENCY" |
+                             "PORTFOLIO_RISK_LIMIT" | "DEAD_MAN_TRIGGERED" |
+                             "MANUAL_CLOSE" | "MANUAL_CLOSE_ALL" | "FILL_TIMEOUT"
   pnl_usd           Number   realized P&L in USD
   execution_arn     String   Step Functions execution ARN
   last_heartbeat    String   ISO timestamp (updated by check_price Lambda)
@@ -55,8 +58,11 @@ Records:
 
   pk: "trading_enabled"
     value: Boolean  true | false
-    updated_at: String
-    updated_by: String  "dashboard" | "portfolio_risk" | "system"
+    reason:     String   "initial_deploy" | "manual_pause" | "manual_resume" |
+                             "manual_close_all" | "portfolio_risk_limit" |
+                             "dead_man_triggered" | "session_alive" |
+                             "reauth_success" | "reauth_failed" |
+                             "cp_gateway_unreachable"
 
   pk: "notification_preferences"
     enabled: Boolean
@@ -68,6 +74,7 @@ Records:
       daily_loss_limit:  Boolean
       emergency_close:   Boolean
       auth_failure:      Boolean
+      rejection:         Boolean   (distinct from fill — muting fills does not suppress rejections)
     }
 
   pk: "risk_parameters"
@@ -193,20 +200,9 @@ Bus name: `trade-engine-events`
 ```
 
 ### trade-lifecycle event
-```json
-{
-  "source": "trade-engine.lifecycle",
-  "detail-type": "TradeStateChange",
-  "detail": {
-    "trade_id": "trade_20240315_143022_ES_BUY",
-    "from_state": "OPEN",
-    "to_state": "CLOSED",
-    "exit_reason": "TP_HIT",
-    "pnl_usd": 187.50,
-    "timestamp": "2024-03-15T15:14:22Z"
-  }
-}
-```
+> **Note:** The `trade-engine.lifecycle` / `TradeStateChange` event is defined in the EventBridge SQS rule pattern
+> but is not currently published by any Lambda. The EventBridge bus carries only `PriceUpdate` events
+> (source: `trade-engine.check-price`). `TradeStateChange` is reserved for future use.
 
 ---
 
