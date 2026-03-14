@@ -43,7 +43,7 @@ Resources:
         Enabled: true
         DefaultRootObject: index.html
         HttpVersion: http2
-        PriceClass: PriceClass_100   # US/Europe only - cheapest
+        PriceClass: PriceClass_100   # cheapest
         Origins:
           # S3 origin - serves HTML/CSS/JS
           - Id: S3Origin
