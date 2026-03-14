@@ -67,7 +67,7 @@ cd infra
 sam build
 ```
 
-Deploy with your values:
+Deploy with your values, MaxPositionSize=10; MaxDailyLossUsd=500; as per your risk apetite. Carefully:
 ```bash
 sam deploy \
   --stack-name trade-engine \

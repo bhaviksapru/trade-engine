@@ -1,6 +1,6 @@
 # trade-engine
 
-> **Why this exists**: NinjaTrader charges ~$100/month for live trade execution. This project eliminates that fee entirely by routing signals from a free NinjaTrader instance through a self-hosted cloud execution layer connecting directly to Interactive Brokers - your broker, your infrastructure, your cost.
+> **Why this exists**: NinjaTrader charges ~$100/month for live trade execution. This project eliminates that fee entirely by routing signals from a free NinjaTrader instance through a self-hosted cloud execution layer connecting directly to Interactive Brokers - your broker, your infrastructure, your cost, while still benefiting from the rich userinterface, algo strategy development and backtesting capabilities of NinjaTrader.
 
 ---
 
@@ -67,7 +67,7 @@ trade-engine/
 │       └── ibgateway.env.example     <- copy to ibgateway.env for local dev
 ├── ninjatrader/
 │   ├── OrchestratorClient.cs         <- update: BaseUrl + ApiKey (post-deploy)
-│   └── MesConsolidationProfitHunter.cs
+│   └── MesConsolidationProfitHunter.cs <- Trade strategy for Micro ES futures->
 └── infra/                            ← AWS SAM infrastructure-as-code
     ├── template.yaml                 ← root SAM template (Lambdas, Step Functions, API GW)
     ├── samconfig.toml                ← SAM CLI configuration
@@ -134,7 +134,7 @@ Only one specific Google account can log in. Everyone else gets 403.
 
 Every signal request is validated by a Lambda authorizer that checks:
 - `X-API-Key` header (stored in Secrets Manager, auto-generated on deploy)
-- Source IP must match `YourDesktopIp` parameter
+- Source IP must match `YourDesktopIp` parameter. Make it static in your modem's admin page. I have rogers modem which uses 10.0.0.1 for admin.
 
 ### IAM - Least Privilege
 
@@ -207,7 +207,7 @@ aws secretsmanager update-secret \
 # Then update OrchestratorClient.cs and recompile in NinjaTrader
 ```
 
-### Destroy everything
+### Destroy everything. Refer Teaddown.MD as well
 ```bash
 BUCKET=$(aws cloudformation describe-stacks --stack-name trade-engine \
   --query "Stacks[0].Outputs[?OutputKey=='S3BucketName'].OutputValue" --output text)
