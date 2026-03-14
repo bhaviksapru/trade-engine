@@ -17,12 +17,23 @@ namespace NinjaTrader.Custom.AddOns
 {
     public class OrchestratorClient : IDisposable
     {
-        // ──  UPDATE THESE TWO LINES ──────────────────────────────────────────
+        // ──  UPDATE BaseUrl THEN SET ApiKey AS AN ENV VAR ───────────────────────
         private const string BaseUrl = "https://XXXX.execute-api.us-east-2.amazonaws.com/prod";
         // terraform output: api_gateway_url  (no trailing slash, no /signal)
 
-        private const string ApiKey = "PASTE_API_KEY_HERE";
-        // aws secretsmanager get-secret-value --secret-id trade-engine/api-key
+        // Set TRADE_ENGINE_API_KEY in Windows:
+        //   System Properties → Environment Variables → User variables → New
+        //     Variable name:  TRADE_ENGINE_API_KEY
+        //     Variable value: (paste key from: aws secretsmanager get-secret-value
+        //                      --secret-id trade-engine/api-key-trade-engine
+        //                      --query SecretString --output text)
+        //   Then restart NinjaTrader for the change to take effect.
+        private static readonly string ApiKey =
+            Environment.GetEnvironmentVariable("TRADE_ENGINE_API_KEY")
+            ?? throw new InvalidOperationException(
+                "TRADE_ENGINE_API_KEY environment variable is not set. " +
+                "Add it via Windows System Properties → Environment Variables, " +
+                "then restart NinjaTrader.");
         // ───────────────────────────────────────────────────────────────────────
 
         private readonly HttpClient _http;
