@@ -1,5 +1,5 @@
 """
-Signal Lambda — receives NinjaTrader signals, starts Step Functions execution.
+Signal Lambda - receives NinjaTrader signals, starts Step Functions execution.
 Triggered by API Gateway POST /signal.
 """
 import json
@@ -51,7 +51,7 @@ def handler(event, context):
             return response(200, {"status": "paused", "message": "Trading is currently disabled"})
     except Exception as e:
         logger.error(f"Failed to check trading_enabled: {e}")
-        # Fail safe — don't trade if we can't check config
+        # Fail safe - don't trade if we can't check config
         return response(503, {"error": "Cannot verify trading status"})
 
     # Build trade ID

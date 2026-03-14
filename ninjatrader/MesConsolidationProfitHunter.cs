@@ -10,16 +10,16 @@ using NinjaTrader.Custom.AddOns; // OrchestratorClient
 #endregion
 
 // ──────────────────────────────────────────────────────────────────────────────
-// MesProfitHunterSideways — trade-engine edition
+// MesProfitHunterSideways - trade-engine edition
 //
 // What changed from the original:
 //   • EnterLong / EnterShort → fire via OrchestratorClient to AWS (IBKR execution)
-//   • SetProfitTarget / SetStopLoss removed — AWS set_stop Lambda handles this
-//   • ManageBreakeven removed — AWS check_price Lambda handles this
-//   • ExitLong / ExitShort at mean removed — AWS monitoring loop handles exits
-//   • Position.MarketPosition checks removed — NinjaTrader is signal-only now,
+//   • SetProfitTarget / SetStopLoss removed - AWS set_stop Lambda handles this
+//   • ManageBreakeven removed - AWS check_price Lambda handles this
+//   • ExitLong / ExitShort at mean removed - AWS monitoring loop handles exits
+//   • Position.MarketPosition checks removed - NinjaTrader is signal-only now,
 //     it has no position state. Cooldown is tracked by lastSignalBar instead.
-//   • OnExecutionUpdate removed — no local executions
+//   • OnExecutionUpdate removed - no local executions
 //
 // Everything else (BB, RSI, cooldown, time filter, all parameters) is unchanged.
 // ──────────────────────────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Display(Name = "Cooldown Bars", Order = 2, GroupName = "Logic")]
         public int CooldownBars { get; set; }
 
-        // Kept as reference — actual enforcement is in AWS risk_parameters DynamoDB
+        // Kept as reference - actual enforcement is in AWS risk_parameters DynamoDB
         [NinjaScriptProperty]
         [Display(Name = "Profit Target (ticks)", Order = 1, GroupName = "Risk")]
         public int ProfitTargetTicks { get; set; }
@@ -78,7 +78,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Calculate   = Calculate.OnBarClose;
                 IsExitOnSessionCloseStrategy = true;
 
-                // Tuned Parameters — unchanged
+                // Tuned Parameters - unchanged
                 BBPeriod             = 20;
                 CooldownBars         = 3;
                 ProfitTargetTicks    = 18;
@@ -113,14 +113,14 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // ── Cooldown filter ──────────────────────────────────────────────
             // lastSignalBar tracks when we last FIRED a signal (not execution,
-            // since execution now happens in AWS — NinjaTrader has no position state)
+            // since execution now happens in AWS - NinjaTrader has no position state)
             if (CurrentBar - lastSignalBar < CooldownBars) return;
 
-            // ── Time filter — unchanged ──────────────────────────────────────
+            // ── Time filter - unchanged ──────────────────────────────────────
             int timeNow = ToTime(Time[0]);
             if (timeNow < StartTime || timeNow > EndTime) return;
 
-            // ── Entry signals — unchanged logic, new execution path ──────────
+            // ── Entry signals - unchanged logic, new execution path ──────────
 
             // Long: price pierced lower BB + oversold RSI
             if (Low[0] < bb.Lower[0] && rsi[0] < 30)

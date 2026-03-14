@@ -1,5 +1,5 @@
 """
-Wait For Fill Lambda — polls CP Gateway until order is filled or raises FillTimeout.
+Wait For Fill Lambda - polls CP Gateway until order is filled or raises FillTimeout.
 Step Functions retries with exponential backoff via the ASL Retry config.
 """
 import os, boto3, httpx, logging
@@ -14,12 +14,12 @@ CP_URL       = os.environ["CP_GATEWAY_URL"]
 
 
 class FillPending(Exception):
-    """Raised when order is not yet filled — triggers SF retry."""
+    """Raised when order is not yet filled - triggers SF retry."""
     pass
 
 
 class FillTimeout(Exception):
-    """Raised when order is definitively not filled — triggers cancel path."""
+    """Raised when order is definitively not filled - triggers cancel path."""
     pass
 
 
@@ -68,5 +68,5 @@ def handler(event, context):
         if status in ("cancelled", "inactive", "apiCancelled"):
             raise FillTimeout(f"Order {ib_order_id} was cancelled (status={status})")
 
-    # Not in filled/inactive list yet — pending
+    # Not in filled/inactive list yet - pending
     raise FillPending(f"Order {ib_order_id} not yet filled")

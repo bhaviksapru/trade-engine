@@ -1,5 +1,5 @@
 """
-Portfolio Risk Lambda — cross-trade exposure monitor. Runs every 60s during market hours.
+Portfolio Risk Lambda - cross-trade exposure monitor. Runs every 60s during market hours.
 If daily loss limit is exceeded across all strategies:
   1. Stops all running Step Functions executions
   2. Closes all open positions at market
@@ -55,7 +55,7 @@ def handler(event, context):
         return {"status": "error", "message": str(e)}
 
     logger.info(
-        f"Portfolio risk check — realized={daily_pnl:.2f} unrealized={unrealized_pnl:.2f} "
+        f"Portfolio risk check - realized={daily_pnl:.2f} unrealized={unrealized_pnl:.2f} "
         f"total={total_pnl:.2f} limit={max_daily_loss:.2f}"
     )
 
@@ -68,7 +68,7 @@ def handler(event, context):
             "open_trades":    len(open_trades),
         }
 
-    # ── LIMIT BREACHED — emergency shutdown ──────────────────────────────────
+    # --- LIMIT BREACHED - emergency shutdown ---
     logger.warning(
         f"DAILY LOSS LIMIT BREACHED: ${total_pnl:.2f} (limit: ${max_daily_loss:.2f}). "
         f"Closing {len(open_trades)} open position(s)."

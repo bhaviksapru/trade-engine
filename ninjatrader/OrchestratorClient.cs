@@ -2,7 +2,7 @@
 // Place in: Documents\NinjaTrader 8\bin\Custom\
 // Compile:  NinjaTrader → Tools → Edit NinjaScript → Compile
 //
-// ✏️  UPDATE LINES 16-20 WITH YOUR VALUES
+//   UPDATE LINES 16-20 WITH YOUR VALUES
 //     Run: cd infra && terraform output
 
 using System;
@@ -17,7 +17,7 @@ namespace NinjaTrader.Custom.AddOns
 {
     public class OrchestratorClient : IDisposable
     {
-        // ── ✏️ UPDATE THESE TWO LINES ──────────────────────────────────────────
+        // ──  UPDATE THESE TWO LINES ──────────────────────────────────────────
         private const string BaseUrl = "https://XXXX.execute-api.us-east-2.amazonaws.com/prod";
         // terraform output: api_gateway_url  (no trailing slash, no /signal)
 

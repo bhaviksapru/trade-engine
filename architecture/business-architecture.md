@@ -2,9 +2,9 @@
 
 ## Problem Statement
 
-NinjaTrader's live trade execution licence costs approximately **$100/month** (~$1,200/year). This fee is charged for the privilege of routing orders through NinjaTrader's brokerage integration layer — a function that is technically replaceable with a custom integration using a broker's own API.
+NinjaTrader's live trade execution licence costs approximately **$100/month** (~$1,200/year). This fee is charged for the privilege of routing orders through NinjaTrader's brokerage integration layer - a function that is technically replaceable with a custom integration using a broker's own API.
 
-Interactive Brokers provides the **Client Portal API Gateway** — a free, self-hosted REST interface that any application can use to place orders, query positions, and manage risk directly. The trading signal intelligence (technical analysis, strategy logic) remains in NinjaTrader, which is available free for simulation and signal generation.
+Interactive Brokers provides the **Client Portal API Gateway** - a free, self-hosted REST interface that any application can use to place orders, query positions, and manage risk directly. The trading signal intelligence (technical analysis, strategy logic) remains in NinjaTrader, which is available free for simulation and signal generation.
 
 ---
 
@@ -12,9 +12,9 @@ Interactive Brokers provides the **Client Portal API Gateway** — a free, self-
 
 | | Before | After |
 |---|---|---|
-| Monthly cost | ~$100 (NinjaTrader execution) | ~$36 (AWS 3-AZ HA infrastructure) |
-| Annual cost | ~$1,200 | ~$432 |
-| **Annual saving** | | **~$768** |
+| Monthly cost | ~$100 (NinjaTrader execution) | ~$30 (AWS 3-AZ HA infrastructure) |
+| Annual cost | ~$1,200 | ~$360 |
+| **Annual saving** | | **~$840** |
 | Broker | Interactive Brokers | Interactive Brokers (unchanged) |
 | Strategy logic | NinjaTrader C# | NinjaTrader C# (unchanged) |
 | Execution | NinjaTrader → IB | AWS → IB directly |
@@ -81,7 +81,7 @@ Interactive Brokers provides the **Client Portal API Gateway** — a free, self-
 
 **Off-Hours:**
 - All compute stops (cost saving)
-- Dead man Lambda continues running (safety net — negligible cost)
+- Dead man Lambda continues running (safety net - negligible cost)
 - DynamoDB retains all trade history
 
 ---

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Trade Engine — Dashboard</title>
+  <title>Trade Engine - Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
@@ -150,22 +150,22 @@
   <div class="grid-top">
     <div class="card">
       <div class="card-label">Daily P&L</div>
-      <div class="card-value" id="metric-pnl">—</div>
+      <div class="card-value" id="metric-pnl">-</div>
       <div class="card-sub" id="metric-pnl-sub">loading...</div>
     </div>
     <div class="card">
       <div class="card-label">Open Positions</div>
-      <div class="card-value" id="metric-open">—</div>
+      <div class="card-value" id="metric-open">-</div>
       <div class="card-sub">active trades</div>
     </div>
     <div class="card">
       <div class="card-label">Today's Trades</div>
-      <div class="card-value" id="metric-count">—</div>
+      <div class="card-value" id="metric-count">-</div>
       <div class="card-sub" id="metric-winrate">win rate loading</div>
     </div>
     <div class="card">
       <div class="card-label">Daily Limit Used</div>
-      <div class="card-value" id="metric-limit">—</div>
+      <div class="card-value" id="metric-limit">-</div>
       <div class="card-sub" id="metric-limit-sub">of max loss limit</div>
     </div>
   </div>
@@ -181,7 +181,7 @@
       <span class="toggle-label" id="trading-label">Trading Enabled</span>
     </div>
     <button class="btn" onclick="openNotifModal()">🔔 Notifications</button>
-    <button class="btn" onclick="openRiskModal()">⚙️ Risk Limits</button>
+    <button class="btn" onclick="openRiskModal()">Risk Limits</button>
     <button class="btn btn-primary" onclick="refreshAll()">↺ Refresh</button>
   </div>
 
@@ -278,8 +278,8 @@ async function loadRisk() {
     el("metric-pnl").textContent     = fmt(pnl);
     el("metric-pnl").className       = "card-value " + (pnl >= 0 ? "green" : "red");
     el("metric-pnl-sub").textContent = `${d.win_count || 0}W / ${d.loss_count || 0}L today`;
-    el("metric-open").textContent    = d.open_positions ?? "—";
-    el("metric-count").textContent   = d.daily_trade_count ?? "—";
+    el("metric-open").textContent    = d.open_positions ?? "-";
+    el("metric-count").textContent   = d.daily_trade_count ?? "-";
     const total = (d.win_count || 0) + (d.loss_count || 0);
     el("metric-winrate").textContent = total > 0 ? `${(d.win_count/total*100).toFixed(0)}% win rate` : "no closed trades";
     el("metric-limit").textContent   = `${pct}%`;
@@ -333,13 +333,13 @@ async function loadTrades() {
         <td><span class="badge-${t.side?.toLowerCase()}">${t.side}</span></td>
         <td>${t.quantity}</td>
         <td class="mono">$${parseFloat(t.fill_price||0).toFixed(2)}</td>
-        <td class="mono">${t.close_price ? "$"+parseFloat(t.close_price).toFixed(2) : "—"}</td>
+        <td class="mono">${t.close_price ? "$"+parseFloat(t.close_price).toFixed(2) : "-"}</td>
         <td class="mono" style="color:${pnl>=0?'var(--green)':'var(--red)'}">
-          ${t.status==="CLOSED" ? fmt(pnl) : "—"}</td>
-        <td class="mono" style="font-size:.65rem">${t.exit_reason || "—"}</td>
+          ${t.status==="CLOSED" ? fmt(pnl) : "-"}</td>
+        <td class="mono" style="font-size:.65rem">${t.exit_reason || "-"}</td>
         <td><span class="badge ${statusClass}">${t.status}</span></td>
         <td>${t.status==="OPEN"?`<button class="btn btn-danger" onclick="confirmClose('${t.trade_id}','${t.symbol}')"
-            style="font-size:.55rem;padding:.3rem .6rem">Close</button>`:"—"}</td>
+            style="font-size:.55rem;padding:.3rem .6rem">Close</button>`:"-"}</td>
       </tr>`;
     }).join("");
   } catch(e) { console.error("loadTrades:", e); }
@@ -353,7 +353,7 @@ async function loadHealth() {
     el("ib-label").textContent = ib ? "IB Connected" : "IB Disconnected";
     el("health-body").innerHTML = `
       <div>Orchestrator &nbsp;<span style="color:var(--green)">● ok</span></div>
-      <div>CP Gateway &nbsp;&nbsp;<span style="color:${d?.cp_gateway==='authenticated'?'var(--green)':'var(--red)'}">● ${d?.cp_gateway||'—'}</span></div>
+      <div>CP Gateway &nbsp;&nbsp;<span style="color:${d?.cp_gateway==='authenticated'?'var(--green)':'var(--red)'}">● ${d?.cp_gateway||'-'}</span></div>
       <div>IB Session &nbsp;&nbsp;<span style="color:${ib?'var(--green)':'var(--red)'}">● ${ib?'connected':'disconnected'}</span></div>
     `;
   } catch(e) {

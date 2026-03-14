@@ -1,5 +1,5 @@
 """
-API Authorizer Lambda — validates X-API-Key header and source IP for the
+API Authorizer Lambda - validates X-API-Key header and source IP for the
 NinjaTrader signal endpoint. Used as a Lambda authorizer on HTTP API Gateway.
 Returns IAM policy allowing or denying the request.
 """
@@ -27,12 +27,12 @@ def handler(event, context):
     source_ip  = event.get("requestContext", {}).get("http", {}).get("sourceIp", "")
     provided_key = headers.get("x-api-key", "")
 
-    # ── IP check ──────────────────────────────────────────────────────────────
+    # --- IP check ---
     if source_ip != ALLOWED_IP:
         logger.warning(f"Rejected source IP: {source_ip} (allowed: {ALLOWED_IP})")
         return _deny()
 
-    # ── API key check ─────────────────────────────────────────────────────────
+    # --- API key check ---
     expected_key = _get_api_key()
     if not provided_key or provided_key != expected_key:
         logger.warning(f"Invalid or missing API key from {source_ip}")

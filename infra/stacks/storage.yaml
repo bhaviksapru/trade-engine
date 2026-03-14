@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Trade Engine — DynamoDB, SNS, SQS, EventBridge, S3
+Description: Trade Engine - DynamoDB, SNS, SQS, EventBridge, S3
 
 Parameters:
   StackName:
@@ -9,7 +9,7 @@ Parameters:
 
 Resources:
 
-# ── DynamoDB: Trades ──────────────────────────────────────────────────────────
+# --- DynamoDB: Trades ---
 
   TradesTable:
     Type: AWS::DynamoDB::Table
@@ -49,7 +49,7 @@ Resources:
           Projection:
             ProjectionType: ALL
 
-# ── DynamoDB: Config ──────────────────────────────────────────────────────────
+# --- DynamoDB: Config ---
 
   ConfigTable:
     Type: AWS::DynamoDB::Table
@@ -64,7 +64,7 @@ Resources:
         - AttributeName: pk
           KeyType: HASH
 
-# ── DynamoDB: Positions ───────────────────────────────────────────────────────
+# --- DynamoDB: Positions ---
 
   PositionsTable:
     Type: AWS::DynamoDB::Table
@@ -83,7 +83,7 @@ Resources:
         - AttributeName: symbol
           KeyType: RANGE
 
-# ── Seed initial config items via Custom Resource ─────────────────────────────
+# --- Seed initial config items via Custom Resource ---
 
   ConfigSeedRole:
     Type: AWS::IAM::Role
@@ -150,7 +150,7 @@ Resources:
       MaxPositionSize: "10"
       OrderCooldownSecs: "5"
 
-# ── SNS: Alert Topic ──────────────────────────────────────────────────────────
+# --- SNS: Alert Topic ---
 
   AlertTopic:
     Type: AWS::SNS::Topic
@@ -160,13 +160,13 @@ Resources:
         - Protocol: sms
           Endpoint: !Ref AlertPhoneNumber
 
-# ── SQS: EventBridge → Fargate WebSocket ─────────────────────────────────────
+# --- SQS: EventBridge → Fargate WebSocket ---
 
   EventsQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub trade-engine-events-${StackName}
-      MessageRetentionPeriod: 300    # 5 minutes — events are stale fast
+      MessageRetentionPeriod: 300    # 5 minutes - events are stale fast
       VisibilityTimeout: 30
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt EventsDlq.Arn
@@ -190,7 +190,7 @@ Resources:
             Action: sqs:SendMessage
             Resource: !GetAtt EventsQueue.Arn
 
-# ── EventBridge: Custom Bus ───────────────────────────────────────────────────
+# --- EventBridge: Custom Bus ---
 
   TradeEventsBus:
     Type: AWS::Events::EventBus
@@ -215,7 +215,7 @@ Resources:
         - Id: EventsQueue
           Arn: !GetAtt EventsQueue.Arn
 
-# ── S3: Dashboard UI ──────────────────────────────────────────────────────────
+# --- S3: Dashboard UI ---
 
   DashboardBucket:
     Type: AWS::S3::Bucket
@@ -229,7 +229,7 @@ Resources:
       VersioningConfiguration:
         Status: Enabled
 
-# ── CloudWatch Log Groups (30-day retention) ──────────────────────────────────
+# --- CloudWatch Log Groups (30-day retention) ---
 
   LambdaLogGroup:
     Type: AWS::Logs::LogGroup

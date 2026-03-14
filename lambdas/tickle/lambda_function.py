@@ -1,5 +1,5 @@
 """
-Tickle Lambda — keeps IBKR CP Gateway session alive.
+Tickle Lambda - keeps IBKR CP Gateway session alive.
 Runs every 55 seconds via CloudWatch Events rule.
 Also checks auth status and triggers re-auth if session expired.
 """
@@ -43,15 +43,15 @@ def handler(event, context):
                 f"{CP_GATEWAY_URL}/v1/api/tickle",
                 verify=False, timeout=5
             )
-            logger.info(f"Tickle sent — session alive. Status: {tickle_resp.status_code}")
+            logger.info(f"Tickle sent - session alive. Status: {tickle_resp.status_code}")
             _set_trading_enabled(True, reason="session_alive")
             return {"status": "ok", "authenticated": True}
         except Exception as e:
             logger.error(f"Tickle failed: {e}")
             return {"status": "error", "message": str(e)}
     else:
-        # 3. Session expired — attempt re-authentication
-        logger.warning("CP Gateway session expired — attempting reauthentication")
+        # 3. Session expired - attempt re-authentication
+        logger.warning("CP Gateway session expired - attempting reauthentication")
         for attempt in range(1, MAX_REAUTH_ATTEMPTS + 1):
             try:
                 reauth_resp = httpx.post(
@@ -66,7 +66,7 @@ def handler(event, context):
                 logger.warning(f"Reauth attempt {attempt} failed: {e}")
 
         # All reauth attempts failed
-        logger.error("All reauthentication attempts failed — disabling trading")
+        logger.error("All reauthentication attempts failed - disabling trading")
         _set_trading_enabled(False, reason="reauth_failed")
         _alert("⚠️ IBKR CP Gateway authentication failed after 3 attempts. Trading disabled. Manual intervention required.")
         return {"status": "auth_failed"}

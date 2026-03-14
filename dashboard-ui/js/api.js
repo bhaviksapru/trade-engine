@@ -1,4 +1,4 @@
-// api.js — REST calls to FastAPI on Fargate
+// api.js - REST calls to FastAPI on Fargate
 // All calls attach the Cognito JWT automatically
 
 const API = (() => {

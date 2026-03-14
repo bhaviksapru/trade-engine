@@ -56,7 +56,7 @@ class TradeMonitor:
 
         from ib_insync import Stock, Future, Contract
 
-        # Simple contract resolution — extend this for futures, forex, etc.
+        # Simple contract resolution - extend this for futures, forex, etc.
         contract = Stock(symbol, "SMART", "USD")
         await self._ib.qualifyContractsAsync(contract)
 

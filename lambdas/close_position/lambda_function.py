@@ -1,5 +1,5 @@
 """
-Close Position Lambda — places market close order at IB, updates DynamoDB.
+Close Position Lambda - places market close order at IB, updates DynamoDB.
 Handles both normal close (after monitoring loop) and CANCEL (fill timeout).
 Returns { "close_price": ..., "exit_reason": ... }
 """
@@ -27,7 +27,7 @@ def handler(event, context):
     side     = event["side"]
     quantity = int(event["quantity"])
 
-    logger.info(f"[{trade_id}] Closing position — {side} {quantity} {symbol} reason={exit_reason}")
+    logger.info(f"[{trade_id}] Closing position - {side} {quantity} {symbol} reason={exit_reason}")
 
     close_side = "SELL" if side == "BUY" else "BUY"
     account_id = _get_account_id()
@@ -82,7 +82,7 @@ def handler(event, context):
     except Exception as e:
         logger.warning(f"Failed to clear positions table: {e}")
 
-    logger.info(f"[{trade_id}] Closed — price={close_price} pnl={pnl:.2f}")
+    logger.info(f"[{trade_id}] Closed - price={close_price} pnl={pnl:.2f}")
     return {
         "close_price":  close_price,
         "exit_reason":  exit_reason,

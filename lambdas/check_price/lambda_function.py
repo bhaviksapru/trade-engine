@@ -1,5 +1,5 @@
 """
-Check Price Lambda — called by Express Workflow every 5s.
+Check Price Lambda - called by Express Workflow every 5s.
 Fetches price from CP Gateway, evaluates stop/TP/timeout conditions.
 Publishes price event to EventBridge for dashboard WebSocket.
 """
@@ -39,7 +39,7 @@ def handler(event, context):
         current_price = float(price_data.get("31", price_data.get("84", 0)))  # last trade or bid
     except Exception as e:
         logger.error(f"Price fetch failed for {symbol}: {e}")
-        # Don't exit on price fetch failure — just skip this cycle
+        # Don't exit on price fetch failure - just skip this cycle
         return {
             "stop_hit": False, "tp_hit": False, "timeout": False,
             "max_loss_hit": False, "should_chain": False,

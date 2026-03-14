@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Trade Engine — CloudFront CDN for dashboard UI static files
+Description: Trade Engine - CloudFront CDN for dashboard UI static files
 
 Parameters:
   StackName:
@@ -10,7 +10,7 @@ Parameters:
 
 Resources:
 
-  # Origin Access Control — CloudFront can read S3 without making bucket public
+  # Origin Access Control - CloudFront can read S3 without making bucket public
   OriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
@@ -39,19 +39,19 @@ Resources:
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
-        Comment: !Sub Trade Engine dashboard — ${StackName}
+        Comment: !Sub Trade Engine dashboard - ${StackName}
         Enabled: true
         DefaultRootObject: index.html
         HttpVersion: http2
-        PriceClass: PriceClass_100   # US/Europe only — cheapest
+        PriceClass: PriceClass_100   # US/Europe only - cheapest
         Origins:
-          # S3 origin — serves HTML/CSS/JS
+          # S3 origin - serves HTML/CSS/JS
           - Id: S3Origin
             DomainName: !Sub "trade-engine-dashboard-${StackName}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com"
             OriginAccessControlId: !GetAtt OriginAccessControl.Id
             S3OriginConfig:
               OriginAccessIdentity: ''
-          # ALB origin — proxies API and WebSocket calls
+          # ALB origin - proxies API and WebSocket calls
           - Id: AlbOrigin
             DomainName: !Ref AlbDnsName
             CustomOriginConfig:
@@ -83,14 +83,14 @@ Resources:
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
             AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
-          # WebSocket path — disable caching, forward all headers
+          # WebSocket path - disable caching, forward all headers
           - PathPattern: /live*
             TargetOriginId: AlbOrigin
             ViewerProtocolPolicy: https-only
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
             AllowedMethods: [GET, HEAD, OPTIONS]
-        # Custom error pages — SPA routing
+        # Custom error pages - SPA routing
         CustomErrorResponses:
           - ErrorCode: 403
             ResponsePagePath: /index.html

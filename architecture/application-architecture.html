@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>Trade Engine — Application Architecture</title>
+<title>Trade Engine - Application Architecture</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
@@ -80,12 +80,12 @@
 </head>
 <body>
 
-<h1>Application Architecture — Data Flow</h1>
+<h1>Application Architecture - Data Flow</h1>
 <p class="sub">trade-engine · component interactions · state transitions · security boundaries</p>
 
 <!-- PHASE 1: SIGNAL -->
 <div class="section">
-  <div class="section-header" style="color:var(--blue)">① Signal Ingestion — NinjaTrader → AWS</div>
+  <div class="section-header" style="color:var(--blue)">① Signal Ingestion - NinjaTrader → AWS</div>
   <div class="section-body" style="flex-direction:column;gap:0">
     <div style="display:flex;align-items:center;gap:0">
       <div class="node">
@@ -129,11 +129,11 @@
 
 <!-- PHASE 2: STEP FUNCTIONS STANDARD -->
 <div class="section" style="border-color:var(--purple)">
-  <div class="section-header" style="color:var(--purple)">② Trade Lifecycle — Standard Workflow States</div>
+  <div class="section-header" style="color:var(--purple)">② Trade Lifecycle - Standard Workflow States</div>
   <div class="section-body" style="flex-direction:column">
 
     <div class="sf-container">
-      <span class="sf-label">Standard Workflow — trade_lifecycle.asl.json</span>
+      <span class="sf-label">Standard Workflow - trade_lifecycle.asl.json</span>
       <div class="sf-states" style="flex-wrap:wrap;gap:4px">
 
         <div class="sf-state">
@@ -189,7 +189,7 @@
 
       <!-- Express nested -->
       <div class="express">
-        <span class="express-label">Nested Express Workflow — monitoring_loop.asl.json (chains every 5min)</span>
+        <span class="express-label">Nested Express Workflow - monitoring_loop.asl.json (chains every 5min)</span>
         <div class="express-loop" style="gap:4px">
           <div class="sf-state" style="border-color:var(--purple)">
             <div class="sf-state-name" style="color:var(--purple)">CHECK_PRICE</div>
@@ -223,7 +223,7 @@
 
 <!-- PHASE 3: CP GATEWAY -->
 <div class="section">
-  <div class="section-header" style="color:var(--green)">③ Order Execution — Lambdas → CP Gateway → IBKR</div>
+  <div class="section-header" style="color:var(--green)">③ Order Execution - Lambdas → CP Gateway → IBKR</div>
   <div class="section-body">
     <div class="node">
       <div class="node-title">Lambda (any order lambda)</div>
@@ -255,7 +255,7 @@
 
 <!-- PHASE 4: DASHBOARD -->
 <div class="section">
-  <div class="section-header" style="color:var(--blue)">④ Dashboard — Browser → CloudFront → Cognito → FastAPI → DynamoDB/EventBridge</div>
+  <div class="section-header" style="color:var(--blue)">④ Dashboard - Browser → CloudFront → Cognito → FastAPI → DynamoDB/EventBridge</div>
   <div class="section-body" style="flex-direction:column;gap:8px">
     <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap">
       <div class="node" style="border-color:var(--blue)">
@@ -306,7 +306,7 @@
 
 <!-- BACKGROUND LAMBDAS -->
 <div class="section">
-  <div class="section-header" style="color:var(--amber)">⑤ Background Safety Net — Always Running</div>
+  <div class="section-header" style="color:var(--amber)">⑤ Background Safety Net - Always Running</div>
   <div class="section-body">
     <div class="node">
       <div class="node-title">Tickle Lambda</div>

@@ -1,5 +1,5 @@
 """
-Actions route — POST endpoints for dashboard controls.
+Actions route - POST endpoints for dashboard controls.
 All require valid Cognito JWT (enforced at app level).
 """
 import os
@@ -24,7 +24,7 @@ CP_GATEWAY_URL = os.environ["CP_GATEWAY_URL"]
 SNS_TOPIC_ARN  = os.environ["SNS_TOPIC_ARN"]
 
 
-# ── Close All Positions ──────────────────────────────────────────────────────
+# --- Close All Positions ---
 
 @router.post("/close-all-positions")
 async def close_all_positions():
@@ -77,12 +77,12 @@ async def close_all_positions():
     _disable_trading("manual_close_all")
     sns.publish(TopicArn=SNS_TOPIC_ARN,
                 Message=f"Manual close all: {len(closed)} closed, {len(failed)} failed",
-                Subject="Trade Engine — Close All")
+                Subject="Trade Engine - Close All")
 
     return {"closed": closed, "failed": failed}
 
 
-# ── Close Single Position ────────────────────────────────────────────────────
+# --- Close Single Position ---
 
 @router.post("/close-position/{trade_id}")
 async def close_position(trade_id: str):
@@ -117,7 +117,7 @@ async def close_position(trade_id: str):
     return {"message": f"Position {trade_id} closed"}
 
 
-# ── Trading Enable/Disable ───────────────────────────────────────────────────
+# --- Trading Enable/Disable ---
 
 @router.post("/pause-trading")
 async def pause_trading():
@@ -131,7 +131,7 @@ async def resume_trading():
     return {"trading_enabled": True}
 
 
-# ── Notifications ────────────────────────────────────────────────────────────
+# --- Notifications ---
 
 class NotificationPrefs(BaseModel):
     enabled: bool
@@ -150,7 +150,7 @@ async def update_notifications(prefs: NotificationPrefs):
     return {"message": "Notification preferences updated", "enabled": prefs.enabled}
 
 
-# ── Risk Parameters ──────────────────────────────────────────────────────────
+# --- Risk Parameters ---
 
 class RiskParams(BaseModel):
     max_daily_loss_usd: Optional[float] = None
@@ -177,7 +177,7 @@ async def set_risk_parameters(params: RiskParams):
     return {"message": "Risk parameters updated", "updated": updates}
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# --- Helpers ---
 
 def _disable_trading(reason: str):
     config_table.put_item(Item={"pk": "trading_enabled", "value": False, "reason": reason})

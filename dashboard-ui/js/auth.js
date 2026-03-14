@@ -1,4 +1,4 @@
-// auth.js — Cognito + Google OAuth PKCE flow
+// auth.js - Cognito + Google OAuth PKCE flow
 // Handles login, token storage, token refresh, logout
 
 const Auth = (() => {
@@ -75,7 +75,7 @@ const Auth = (() => {
     window.location.href = `${cognitoDomain}/logout?${params}`;
   }
 
-  // Call on every page — redirects to login if not authenticated
+  // Call on every page - redirects to login if not authenticated
   async function requireAuth() {
     // Check for OAuth callback code first
     if (window.location.search.includes("code=")) {

@@ -1,5 +1,5 @@
 """
-Set Stop Lambda — places protective stop order and calculates take-profit level.
+Set Stop Lambda - places protective stop order and calculates take-profit level.
 Called after fill confirmation. Updates DynamoDB with stop details.
 Returns { "stop_loss_price": ..., "take_profit_price": ..., "stop_order_id": ... }
 """
@@ -14,7 +14,7 @@ config_table = dynamodb.Table(os.environ["CONFIG_TABLE"])
 trades_table = dynamodb.Table(os.environ["TRADES_TABLE"])
 CP_URL       = os.environ["CP_GATEWAY_URL"]
 
-# Risk/reward defaults — ideally loaded per-strategy from DynamoDB
+# Risk/reward defaults - ideally loaded per-strategy from DynamoDB
 STOP_TICKS        = int(os.environ.get("STOP_LOSS_TICKS", "14"))
 TP_TICKS          = int(os.environ.get("TAKE_PROFIT_TICKS", "18"))
 TICK_SIZE         = float(os.environ.get("TICK_SIZE", "0.25"))  # MES/ES tick
@@ -28,7 +28,7 @@ def handler(event, context):
     quantity   = int(event["quantity"])
     fill_price = float(event["fill_price"])
 
-    logger.info(f"[{trade_id}] Setting stop — {side} {quantity} {symbol} filled @ {fill_price}")
+    logger.info(f"[{trade_id}] Setting stop - {side} {quantity} {symbol} filled @ {fill_price}")
 
     if side == "BUY":
         stop_price = fill_price - (STOP_TICKS * TICK_SIZE)

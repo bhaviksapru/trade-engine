@@ -1,6 +1,6 @@
 version: "3.9"
 
-# ── LOCAL DEVELOPMENT ONLY ────────────────────────────────────────────────────
+# --- LOCAL DEVELOPMENT ONLY ---
 # This docker-compose is for running IB Gateway + the orchestrator locally
 # to test the connection to Interactive Brokers before deploying to AWS.
 #
@@ -19,7 +19,7 @@ version: "3.9"
 
 services:
 
-  # ── IB Gateway ──────────────────────────────────────────────────────────────
+  # --- IB Gateway ---
   ibgateway:
     image: ghcr.io/gnzsnz/ib-gateway:stable
     restart: unless-stopped
@@ -27,7 +27,7 @@ services:
       - ../gateway/config/ibgateway.env   # relative to infra/ → gateway/config/
     ports:
       - "5000:5000"    # CP Gateway REST API (internal Lambda target in AWS)
-      - "5900:5900"    # VNC for debugging — disable in production
+      - "5900:5900"    # VNC for debugging - disable in production
     volumes:
       - ibgateway_data:/root/Jts
     networks:
@@ -39,7 +39,7 @@ services:
       retries: 5
       start_period: 60s   # IB Gateway takes ~45s to authenticate on startup
 
-  # ── Dashboard API (local testing) ───────────────────────────────────────────
+  # --- Dashboard API (local testing) ---
   # In AWS this runs as ECS Fargate. Locally it talks to the ibgateway container.
   dashboard-api:
     build:
@@ -49,7 +49,7 @@ services:
     env_file:
       - ../gateway/config/ibgateway.env   # IB creds (not needed by dashboard, but harmless)
     environment:
-      # Minimal local env — in AWS these come from ECS task definition environment
+      # Minimal local env - in AWS these come from ECS task definition environment
       - CP_GATEWAY_URL=http://ibgateway:5000
       - TRADES_TABLE=trade-engine-trades-local
       - CONFIG_TABLE=trade-engine-config-local
@@ -57,7 +57,7 @@ services:
       - COGNITO_REGION=us-east-2
       - COGNITO_USER_POOL_ID=LOCAL_TESTING_ONLY
       - COGNITO_CLIENT_ID=LOCAL_TESTING_ONLY
-      - ALLOWED_GOOGLE_EMAIL=your.email@gmail.com   # ✏️ update for local auth testing
+      - ALLOWED_GOOGLE_EMAIL=your.email@gmail.com   #  update for local auth testing
       - ALLOWED_ORIGINS=http://localhost:8080,http://localhost:3000
       - EVENTS_SQS_QUEUE_URL=   # empty = WebSocket live feed disabled locally
       - SNS_TOPIC_ARN=          # empty = no SMS alerts locally
@@ -69,7 +69,7 @@ services:
     networks:
       - trade-net
 
-  # ── Nginx (local TLS termination) ───────────────────────────────────────────
+  # --- Nginx (local TLS termination) ---
   # In AWS, CloudFront terminates TLS. Locally nginx handles it.
   nginx:
     image: nginx:alpine

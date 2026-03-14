@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Trade Engine — EC2 CP Gateway, ECR, ECS Fargate dashboard, ALB
+Description: Trade Engine - EC2 CP Gateway, ECR, ECS Fargate dashboard, ALB
 
 Parameters:
   StackName:
@@ -73,7 +73,7 @@ Mappings:
 
 Resources:
 
-# ── ECR Repository ────────────────────────────────────────────────────────────
+# --- ECR Repository ---
 
   EcrRepository:
     Type: AWS::ECR::Repository
@@ -92,7 +92,7 @@ Resources:
             }]
           }
 
-# ── EC2: CP Gateway (IB Gateway) ──────────────────────────────────────────────
+# --- EC2: CP Gateway (IB Gateway) ---
 
   Ec2Role:
     Type: AWS::IAM::Role
@@ -200,7 +200,7 @@ Resources:
         ResourceSignal:
           Timeout: PT10M
 
-# ── ECS Cluster ───────────────────────────────────────────────────────────────
+# --- ECS Cluster ---
 
   EcsCluster:
     Type: AWS::ECS::Cluster
@@ -214,7 +214,7 @@ Resources:
         - Key: project
           Value: trade-engine
 
-# ── ECS IAM Roles ─────────────────────────────────────────────────────────────
+# --- ECS IAM Roles ---
 
   EcsTaskRole:
     Type: AWS::IAM::Role
@@ -285,7 +285,7 @@ Resources:
                   - ecr:GetAuthorizationToken
                 Resource: '*'
 
-# ── CloudWatch Log Group: Fargate ─────────────────────────────────────────────
+# --- CloudWatch Log Group: Fargate ---
 
   FargateLogGroup:
     Type: AWS::Logs::LogGroup
@@ -293,7 +293,7 @@ Resources:
       LogGroupName: !Sub /ecs/trade-engine-dashboard-${StackName}
       RetentionInDays: 30
 
-# ── ECS Task Definition ───────────────────────────────────────────────────────
+# --- ECS Task Definition ---
 
   DashboardTaskDef:
     Type: AWS::ECS::TaskDefinition
@@ -338,7 +338,7 @@ Resources:
               Value: !Sub "http://${CpGatewayInstance.PrivateIp}:5000"
             - Name: SNS_TOPIC_ARN
               Value: !Ref SnsTopicArn
-            # ✏️ ALLOWED_ORIGINS is updated post-deploy with CloudFront URL
+            # update ALLOWED_ORIGINS post-deploy with the CloudFront URL
             - Name: ALLOWED_ORIGINS
               Value: https://localhost
           HealthCheck:
@@ -349,7 +349,7 @@ Resources:
             StartPeriod: 60
           Essential: true
 
-# ── ALB ───────────────────────────────────────────────────────────────────────
+# --- ALB ---
 
   Alb:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -386,7 +386,7 @@ Resources:
         - Key: stickiness.lb_cookie.duration_seconds
           Value: '86400'
 
-  # HTTP listener — redirects to HTTPS
+  # HTTP listener - redirects to HTTPS
   AlbHttpListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -400,12 +400,12 @@ Resources:
             Port: '443'
             StatusCode: HTTP_301
 
-  # HTTPS listener — requires ACM certificate
-  # ✏️ To enable HTTPS on ALB, add an ACM certificate for your domain:
+  # HTTPS listener - requires ACM certificate
+  # To enable HTTPS on ALB, add an ACM certificate for your domain:
   #    1. Request a cert in ACM for your domain
   #    2. Uncomment the AlbHttpsListener below and add the cert ARN
   #    3. Update SgAlb to allow port 443
-  # For now ALB uses HTTP (port 80) — suitable since CloudFront terminates TLS
+  # For now ALB uses HTTP (port 80) - suitable since CloudFront terminates TLS
   AlbHttpDirectListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -416,7 +416,7 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref AlbTargetGroup
 
-# ── ECS Service ───────────────────────────────────────────────────────────────
+# --- ECS Service ---
 
   DashboardService:
     Type: AWS::ECS::Service
@@ -425,7 +425,17 @@ Resources:
       ServiceName: !Sub dashboard-api-${StackName}
       Cluster: !Ref EcsCluster
       TaskDefinition: !Ref DashboardTaskDef
-      LaunchType: FARGATE
+      # FARGATE_SPOT cuts dashboard compute cost by ~70% vs on-demand Fargate.
+      # The dashboard tolerates a brief task interruption - ECS relaunches within ~60s
+      # and the browser WebSocket reconnects automatically.
+      # Base=1 on FARGATE provides fallback if no Spot capacity is available.
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 1
+          Base: 0
+        - CapacityProvider: FARGATE
+          Weight: 0
+          Base: 1
       DesiredCount: 0    # Started by market-open scheduler
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -456,6 +466,8 @@ Outputs:
     Value: !GetAtt Alb.DNSName
   AlbArn:
     Value: !Ref Alb
+  AlbTargetGroupArn:
+    Value: !Ref AlbTargetGroup
   Ec2InstanceId:
     Value: !Ref CpGatewayInstance
   Ec2PrivateIp:

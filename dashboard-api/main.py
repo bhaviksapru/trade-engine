@@ -27,7 +27,7 @@ app = FastAPI(
     title="Trade Engine Dashboard API",
     version="1.0.0",
     lifespan=lifespan,
-    docs_url=None,   # disable public Swagger — internal only
+    docs_url=None,   # disable public Swagger - internal only
     redoc_url=None,
 )
 

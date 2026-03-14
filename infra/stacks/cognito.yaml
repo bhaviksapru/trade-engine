@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Trade Engine — Cognito user pool with Google federation
+Description: Trade Engine - Cognito user pool with Google federation
 
 Parameters:
   StackName:
@@ -15,7 +15,7 @@ Parameters:
 
 Resources:
 
-# ── Pre-Token Lambda (email allowlist check) ──────────────────────────────────
+# --- Pre-Token Lambda (email allowlist check) ---
 
   PreTokenRole:
     Type: AWS::IAM::Role
@@ -49,7 +49,7 @@ Resources:
 
           def handler(event, context):
             """
-            Cognito pre-token trigger — allows only the configured Google email.
+            Cognito pre-token trigger - allows only the configured Google email.
             Called before every token issuance (login + refresh).
             """
             allowed = os.environ.get('ALLOWED_EMAIL', '').strip().lower()
@@ -76,7 +76,7 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: cognito-idp.amazonaws.com
 
-# ── Cognito User Pool ─────────────────────────────────────────────────────────
+# --- Cognito User Pool ---
 
   UserPool:
     Type: AWS::Cognito::UserPool
@@ -112,7 +112,7 @@ Resources:
         email: email
         name: name
 
-# ── Cognito App Client ────────────────────────────────────────────────────────
+# --- Cognito App Client ---
 
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
@@ -132,11 +132,11 @@ Resources:
       # Callback and logout URLs are updated post-deploy once CloudFront URL is known
       # Set placeholders here; update manually or via a Custom Resource after FrontendStack deploys
       CallbackURLs:
-        - https://localhost/callback   # ✏️ UPDATE after deploy: use dashboard_url
+        - https://localhost/callback   #  UPDATE after deploy: use dashboard_url
       LogoutURLs:
-        - https://localhost/           # ✏️ UPDATE after deploy: use dashboard_url
+        - https://localhost/           #  UPDATE after deploy: use dashboard_url
 
-# ── Cognito Domain ────────────────────────────────────────────────────────────
+# --- Cognito Domain ---
 
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain

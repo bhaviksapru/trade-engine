@@ -1,5 +1,5 @@
 """
-Place Order Lambda — sends order to IB via CP Gateway, writes DynamoDB.
+Place Order Lambda - sends order to IB via CP Gateway, writes DynamoDB.
 Returns { "ib_order_id": "...", "conid": "..." }
 """
 import os, json, boto3, httpx, logging
@@ -60,7 +60,7 @@ def handler(event, context):
         },
     )
 
-    logger.info(f"[{trade_id}] Order placed — ib_order_id={ib_order_id}")
+    logger.info(f"[{trade_id}] Order placed - ib_order_id={ib_order_id}")
     return {"ib_order_id": ib_order_id, "conid": str(conid), "trade_id": trade_id}
 
 

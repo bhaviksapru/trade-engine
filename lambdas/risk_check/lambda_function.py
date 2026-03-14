@@ -1,5 +1,5 @@
 """
-Risk Check Lambda — pre-trade validation before any order reaches IB.
+Risk Check Lambda - pre-trade validation before any order reaches IB.
 Called as first state in trade_lifecycle Standard Workflow.
 Returns { "approved": true/false, "reason": "..." }
 """
@@ -35,7 +35,7 @@ def handler(event, context):
 
     logger.info(f"[{trade_id}] Risk check: {side} {quantity} {symbol} ({strategy_id})")
 
-    # ── 1. Trading enabled flag ───────────────────────────────────────────────
+    # --- 1. Trading enabled flag ---
     try:
         result = config_table.get_item(Key={"pk": "trading_enabled"})
         if not result.get("Item", {}).get("value", True):
@@ -43,9 +43,9 @@ def handler(event, context):
             return reject(trade_id, f"Trading is disabled: {reason}")
     except Exception as e:
         logger.error(f"Failed to check trading_enabled: {e}")
-        return reject(trade_id, "Cannot verify trading status — fail safe")
+        return reject(trade_id, "Cannot verify trading status - fail safe")
 
-    # ── 2. Trading hours check (ET) ───────────────────────────────────────────
+    # --- 2. Trading hours check (ET) ---
     # Note: Lambda runs in UTC. ET = UTC-4 (summer) or UTC-5 (winter).
     # A robust implementation would use pytz. We check UTC range conservatively.
     now_utc = datetime.now(timezone.utc)
@@ -54,7 +54,7 @@ def handler(event, context):
         logger.warning(f"Signal outside trading hours: {now_utc.strftime('%H:%M UTC')}")
         return reject(trade_id, f"Outside trading hours: {now_utc.strftime('%H:%M UTC')}")
 
-    # ── 3. Load live risk parameters from DynamoDB ────────────────────────────
+    # --- 3. Load live risk parameters from DynamoDB ---
     try:
         risk_item = config_table.get_item(Key={"pk": "risk_parameters"}).get("Item", {})
         max_daily_loss = float(risk_item.get("max_daily_loss_usd", DEFAULT_MAX_DAILY_LOSS_USD))
@@ -64,7 +64,7 @@ def handler(event, context):
         max_daily_loss = DEFAULT_MAX_DAILY_LOSS_USD
         max_position   = DEFAULT_MAX_POSITION_SIZE
 
-    # ── 4. Daily loss limit ───────────────────────────────────────────────────
+    # --- 4. Daily loss limit ---
     today = now_utc.strftime("%Y-%m-%d")
     try:
         pnl_item   = config_table.get_item(Key={"pk": f"daily_pnl#{today}"}).get("Item", {})
@@ -74,7 +74,7 @@ def handler(event, context):
     except Exception as e:
         logger.warning(f"Could not read daily P&L: {e}")
 
-    # ── 5. Open position count ────────────────────────────────────────────────
+    # --- 5. Open position count ---
     try:
         result     = trades_table.query(
             IndexName="StatusIndex",
@@ -88,11 +88,11 @@ def handler(event, context):
     except Exception as e:
         logger.warning(f"Could not count open positions: {e}")
 
-    # ── 6. Quantity sanity check ──────────────────────────────────────────────
+    # --- 6. Quantity sanity check ---
     if quantity <= 0 or quantity > max_position:
         return reject(trade_id, f"Invalid quantity: {quantity} (max: {max_position})")
 
-    logger.info(f"[{trade_id}] Risk check PASSED — proceeding to order placement")
+    logger.info(f"[{trade_id}] Risk check PASSED - proceeding to order placement")
     return {"approved": True, "trade_id": trade_id}
 
 

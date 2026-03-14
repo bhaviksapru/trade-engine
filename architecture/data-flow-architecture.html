@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>Trade Engine — Data Flow Architecture</title>
+<title>Trade Engine - Data Flow Architecture</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
@@ -36,7 +36,7 @@
 
 <div class="page-header">
   <div>
-    <h1>Trade Engine — Data Flow Architecture</h1>
+    <h1>Trade Engine - Data Flow Architecture</h1>
     <div class="sub">All services connected · payload labels on every arrow · AWS us-east-2</div>
   </div>
   <div style="text-align:right; font-size:10px; color:#aaa;">
@@ -97,24 +97,22 @@
   </style>
 </defs>
 
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     BACKGROUND ZONES
-═══════════════════════════════════════════════════════════════════════════ -->
+<!-- BACKGROUND ZONES -->
 
 <!-- Full page bg -->
 <rect width="2040" height="1620" fill="#ffffff"/>
 
 <!-- AWS Region -->
 <rect x="8" y="8" width="2024" height="1604" rx="6" fill="none" stroke="#232F3E" stroke-width="2"/>
-<text x="22" y="26" class="zone-label" fill="#232F3E">AWS Region — us-east-2</text>
+<text x="22" y="26" class="zone-label" fill="#232F3E">AWS Region - us-east-2</text>
 
 <!-- Step Functions Standard zone -->
 <rect x="312" y="192" width="1360" height="570" rx="6" fill="#FFF8EE" stroke="#FF9900" stroke-width="2"/>
-<text x="328" y="212" class="zone-label" fill="#FF9900">Step Functions — Standard Workflow (Trade Lifecycle)</text>
+<text x="328" y="212" class="zone-label" fill="#FF9900">Step Functions - Standard Workflow (Trade Lifecycle)</text>
 
 <!-- SF Express zone -->
 <rect x="624" y="468" width="740" height="200" rx="5" fill="#FFF3E0" stroke="#E8851D" stroke-width="1.5" stroke-dasharray="6,3"/>
-<text x="640" y="487" class="zone-label" fill="#E8851D" font-size="9px">Express Workflow — Monitoring Loop (every 5s · chains every 5min)</text>
+<text x="640" y="487" class="zone-label" fill="#E8851D" font-size="9px">Express Workflow - Monitoring Loop (every 5s · chains every 5min)</text>
 
 <!-- VPC zone -->
 <rect x="312" y="792" width="1360" height="190" rx="5" fill="#F5F3FF" stroke="#8C4FFF" stroke-width="1.5" stroke-dasharray="7,3"/>
@@ -126,20 +124,18 @@
 
 <!-- Safety net zone -->
 <rect x="20" y="1236" width="1280" height="160" rx="5" fill="#FFF5F5" stroke="#C7131F" stroke-width="1.5" stroke-dasharray="5,3"/>
-<text x="36" y="1256" class="zone-label" fill="#C7131F">Safety Net — Background Scheduled Lambdas</text>
+<text x="36" y="1256" class="zone-label" fill="#C7131F">Safety Net - Background Scheduled Lambdas</text>
 
 <!-- Dashboard zone -->
 <rect x="1700" y="192" width="310" height="620" rx="5" fill="#F0F4FD" stroke="#2075D5" stroke-width="1.5"/>
 <text x="1716" y="212" class="zone-label" fill="#2075D5">Dashboard</text>
 
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     SERVICE BOXES — helper macro approach via repeated rect+text patterns
-═══════════════════════════════════════════════════════════════════════════ -->
+<!-- SERVICE BOXES - helper macro approach via repeated rect+text patterns -->
 
-<!-- ── MACRO: draw_service(cx, cy, title, sub, bg, stroke) ── -->
+<!-- MACRO: draw_service(cx, cy, title, sub, bg, stroke) -->
 <!-- Each box: 148px wide, 68px tall, centered at (cx,cy) -->
 
-<!-- ─── ROW 0: External actors ─────────────────────────────────────────── -->
+<!-- ROW 0: External actors -->
 
 <!-- NinjaTrader -->
 <g transform="translate(94,84)">
@@ -177,7 +173,7 @@
   <text x="0" y="36" class="svc-sub" text-anchor="middle">Order Execution</text>
 </g>
 
-<!-- ─── ROW 1: Entry services ─────────────────────────────────────────── -->
+<!-- ROW 1: Entry services -->
 
 <!-- API Gateway -->
 <g transform="translate(300,84)">
@@ -210,7 +206,7 @@
   <text x="0" y="40" class="svc-sub" text-anchor="middle">StartExecution</text>
 </g>
 
-<!-- ─── INSIDE SF STANDARD ─────────────────────────────────────────────── -->
+<!-- INSIDE SF STANDARD -->
 
 <!-- Risk Check Lambda -->
 <g transform="translate(430,344)">
@@ -244,7 +240,7 @@
   <text x="0" y="40" class="svc-sub" text-anchor="middle">Place protective stop</text>
 </g>
 
-<!-- ── INSIDE SF EXPRESS ── -->
+<!-- INSIDE SF EXPRESS -->
 
 <!-- Check Price Lambda -->
 <g transform="translate(720,564)">
@@ -290,7 +286,7 @@
   <text x="0" y="40" class="svc-sub" text-anchor="middle">DynamoDB + SNS</text>
 </g>
 
-<!-- ─── VPC: EC2 CP Gateway ─────────────────────────────────────────────── -->
+<!-- VPC: EC2 CP Gateway -->
 
 <g transform="translate(590,880)">
   <rect x="-90" y="-38" width="180" height="76" rx="8" fill="#FFF8EE" stroke="#E8851D" stroke-width="1.5" class="svc-box"/>
@@ -304,7 +300,7 @@
   <text x="0" y="52" class="svc-sub" text-anchor="middle">ghcr.io/gnzsnz/ib-gateway</text>
 </g>
 
-<!-- ─── DATA STORES ROW ─────────────────────────────────────────────────── -->
+<!-- DATA STORES ROW -->
 
 <!-- DynamoDB Trades -->
 <g transform="translate(100,1114)">
@@ -399,7 +395,7 @@
   <text x="0" y="53" class="svc-sub" text-anchor="middle">30-day retention</text>
 </g>
 
-<!-- ─── DASHBOARD SERVICES ──────────────────────────────────────────────── -->
+<!-- DASHBOARD SERVICES -->
 
 <!-- Cognito -->
 <g transform="translate(1790,290)">
@@ -454,7 +450,7 @@
   <text x="0" y="42" class="svc-sub" text-anchor="middle">dashboard-api · FastAPI</text>
 </g>
 
-<!-- ─── SAFETY NET LAMBDAS ──────────────────────────────────────────────── -->
+<!-- SAFETY NET LAMBDAS -->
 
 <!-- CW Events -->
 <g transform="translate(104,1320)">
@@ -491,20 +487,18 @@
   <text x="0" y="40" class="svc-sub" text-anchor="middle">Emergency · 5min · 24/7</text>
 </g>
 
-<!-- ═══════════════════════════════════════════════════════════════════════
-     ARROWS + FLOW LABELS
-═══════════════════════════════════════════════════════════════════════ -->
+<!-- ARROWS + FLOW LABELS -->
 
 <!-- helper: label box = rect behind text -->
 <!-- Format: arrow path + label rect + label text -->
 
-<!-- ─── 1. NinjaTrader → API Gateway ───────────────────────────────────── -->
+<!-- 1. NinjaTrader → API Gateway -->
 <path d="M168,84 L226,84" class="f-trade"/>
 <rect x="170" y="63" width="54" height="28" rx="3" fill="white" stroke="#E8851D" stroke-width="0.5"/>
 <text x="197" y="74" class="arr-label" text-anchor="middle">POST /signal</text>
 <text x="197" y="85" class="arr-label" text-anchor="middle" fill="#E8851D">{symbol,side,qty}</text>
 
-<!-- ─── 2. API Gateway ↔ Lambda Authorizer ─────────────────────────────── -->
+<!-- 2. API Gateway ↔ Lambda Authorizer -->
 <path d="M300,118 L300,170" class="f-auth"/>
 <rect x="256" y="136" width="88" height="26" rx="3" fill="white" stroke="#C7131F" stroke-width="0.5"/>
 <text x="300" y="147" class="arr-label" text-anchor="middle">X-API-Key header</text>
@@ -516,197 +510,197 @@
 <text x="292" y="631" class="arr-label" text-anchor="middle">GetSecretValue</text>
 <text x="292" y="642" class="arr-label" text-anchor="middle" fill="#C7131F">api_key secret</text>
 
-<!-- ─── 3. API Gateway → Signal Lambda ─────────────────────────────────── -->
+<!-- 3. API Gateway → Signal Lambda -->
 <path d="M374,84 L436,84" class="f-trade"/>
 <rect x="378" y="68" width="54" height="24" rx="3" fill="white" stroke="#E8851D" stroke-width="0.5"/>
 <text x="405" y="78" class="arr-label" text-anchor="middle">authorized</text>
 <text x="405" y="89" class="arr-label" text-anchor="middle" fill="#E8851D">request body</text>
 
-<!-- ─── 4. Signal Lambda → DynamoDB Config (check trading_enabled) ──────── -->
+<!-- 4. Signal Lambda → DynamoDB Config (check trading_enabled) -->
 <path d="M510,118 L510,1076 Q510,1076 366,1076" class="f-data"/>
 <rect x="420" y="560" width="120" height="26" rx="3" fill="white" stroke="#0973BB" stroke-width="0.5"/>
 <text x="480" y="571" class="arr-label" text-anchor="middle">GetItem</text>
 <text x="480" y="582" class="arr-label" text-anchor="middle" fill="#0973BB">trading_enabled flag</text>
 
-<!-- ─── 5. Signal Lambda → SF Standard ─────────────────────────────────── -->
+<!-- 5. Signal Lambda → SF Standard -->
 <path d="M510,118 L510,192 L430,192 L430,310" class="f-trade"/>
 <rect x="430" y="216" width="120" height="30" rx="3" fill="white" stroke="#E8851D" stroke-width="0.5"/>
 <text x="490" y="227" class="arr-label" text-anchor="middle">StartExecution</text>
 <text x="490" y="238" class="arr-label" text-anchor="middle" fill="#E8851D">{trade_id, symbol,</text>
 <text x="490" y="248" class="arr-label" text-anchor="middle" fill="#E8851D">side, qty, strategy}</text>
 
-<!-- ─── 6. Risk Check → Place Order ────────────────────────────────────── -->
+<!-- 6. Risk Check → Place Order -->
 <path d="M504,344 L566,344" class="f-trade"/>
 <rect x="508" y="328" width="54" height="24" rx="3" fill="white" stroke="#E8851D" stroke-width="0.5"/>
 <text x="535" y="338" class="arr-label" text-anchor="middle">{approved:</text>
 <text x="535" y="349" class="arr-label" text-anchor="middle" fill="#1D8102">true}</text>
 
-<!-- ─── 7. Risk Check → DDB Config (risk params + daily P&L) ───────────── -->
+<!-- 7. Risk Check → DDB Config (risk params + daily P&L) -->
 <path d="M430,378 L430,1076 Q430,1076 366,1076" class="f-data"/>
 <!-- label placed mid path -->
 <rect x="334" y="700" width="110" height="26" rx="3" fill="white" stroke="#0973BB" stroke-width="0.5"/>
 <text x="389" y="711" class="arr-label" text-anchor="middle">GetItem risk_params</text>
 <text x="389" y="722" class="arr-label" text-anchor="middle" fill="#0973BB">+ daily_pnl</text>
 
-<!-- ─── 8. Risk Check → DDB Trades (count open) ─────────────────────────── -->
+<!-- 8. Risk Check → DDB Trades (count open) -->
 <path d="M430,378 L430,1076 Q430,1076 174,1076" class="f-data"/>
 <rect x="336" y="766" width="104" height="26" rx="3" fill="white" stroke="#0973BB" stroke-width="0.5"/>
 <text x="388" y="777" class="arr-label" text-anchor="middle">Query StatusIndex</text>
 <text x="388" y="788" class="arr-label" text-anchor="middle" fill="#0973BB">count OPEN trades</text>
 
-<!-- ─── 9. Place Order → Wait For Fill ─────────────────────────────────── -->
+<!-- 9. Place Order → Wait For Fill -->
 <path d="M714,344 L776,344" class="f-trade"/>
 <rect x="718" y="328" width="54" height="24" rx="3" fill="white" stroke="#E8851D" stroke-width="0.5"/>
 <text x="745" y="338" class="arr-label" text-anchor="middle">{ib_order_id,</text>
 <text x="745" y="349" class="arr-label" text-anchor="middle" fill="#E8851D">conid}</text>
 
-<!-- ─── 10. Place Order → EC2 CP Gateway ───────────────────────────────── -->
+<!-- 10. Place Order → EC2 CP Gateway -->
 <path d="M640,378 L640,820 Q640,880 500,880" class="f-exec"/>
 <rect x="560" y="624" width="116" height="30" rx="3" fill="white" stroke="#1D8102" stroke-width="0.5"/>
 <text x="618" y="634" class="arr-label" text-anchor="middle">POST /iserver/account</text>
 <text x="618" y="644" class="arr-label" text-anchor="middle" fill="#1D8102">/{id}/orders</text>
 <text x="618" y="654" class="arr-label" text-anchor="middle" fill="#1D8102">{conid, MKT, side, qty}</text>
 
-<!-- ─── 11. Place Order → DDB Trades ───────────────────────────────────── -->
+<!-- 11. Place Order → DDB Trades -->
 <path d="M640,378 L640,1076 Q640,1076 174,1076" class="f-data"/>
 <!-- (already has label from route 10, skip duplicate label) -->
 
-<!-- ─── 12. Wait For Fill → Set Stop ───────────────────────────────────── -->
+<!-- 12. Wait For Fill → Set Stop -->
 <path d="M924,344 L986,344" class="f-trade"/>
 <rect x="928" y="326" width="54" height="30" rx="3" fill="white" stroke="#E8851D" stroke-width="0.5"/>
 <text x="955" y="336" class="arr-label" text-anchor="middle">{fill_price,</text>
 <text x="955" y="347" class="arr-label" text-anchor="middle" fill="#E8851D">fill_time}</text>
 
-<!-- ─── 13. Wait For Fill → EC2 (poll order status) ──────────────────────── -->
+<!-- 13. Wait For Fill → EC2 (poll order status) -->
 <path d="M850,378 L850,842 Q850,880 680,880" class="f-exec"/>
 <rect x="776" y="590" width="116" height="30" rx="3" fill="white" stroke="#1D8102" stroke-width="0.5"/>
 <text x="834" y="600" class="arr-label" text-anchor="middle">GET /iserver/account</text>
 <text x="834" y="610" class="arr-label" text-anchor="middle" fill="#1D8102">/orders?filters=filled</text>
 <text x="834" y="620" class="arr-label" text-anchor="middle" fill="#1D8102">(retries every 2s)</text>
 
-<!-- ─── 14. Set Stop → SF Express ─────────────────────────────────────── -->
+<!-- 14. Set Stop → SF Express -->
 <path d="M1060,378 L1060,432 L920,432 L920,468" class="f-trade"/>
 <rect x="960" y="400" width="120" height="30" rx="3" fill="white" stroke="#E8851D" stroke-width="0.5"/>
 <text x="1020" y="411" class="arr-label" text-anchor="middle">StartExecution.sync</text>
 <text x="1020" y="421" class="arr-label" text-anchor="middle" fill="#E8851D">{stop_loss, take_profit,</text>
 <text x="1020" y="431" class="arr-label" text-anchor="middle" fill="#E8851D">fill_price, fill_time}</text>
 
-<!-- ─── 15. Set Stop → EC2 (place stop order) ─────────────────────────── -->
+<!-- 15. Set Stop → EC2 (place stop order) -->
 <path d="M1060,378 L1060,820 Q1060,880 680,880" class="f-exec"/>
 <rect x="960" y="664" width="116" height="30" rx="3" fill="white" stroke="#1D8102" stroke-width="0.5"/>
 <text x="1018" y="674" class="arr-label" text-anchor="middle">POST /iserver/account</text>
 <text x="1018" y="684" class="arr-label" text-anchor="middle" fill="#1D8102">/{id}/orders (STP)</text>
 <text x="1018" y="694" class="arr-label" text-anchor="middle" fill="#1D8102">{stop_price, GTC}</text>
 
-<!-- ─── 16. Check Price → Choice (inside Express) ─────────────────────── -->
+<!-- 16. Check Price → Choice (inside Express) -->
 <path d="M794,564 L846,564" class="f-trade"/>
 <rect x="796" y="548" width="48" height="24" rx="3" fill="white" stroke="#E8851D" stroke-width="0.5"/>
 <text x="820" y="558" class="arr-label" text-anchor="middle">{current_price,</text>
 <text x="820" y="569" class="arr-label" text-anchor="middle" fill="#E8851D">unrealized_pnl}</text>
 
-<!-- ─── 17. Choice → Wait 5s ──────────────────────────────────────────── -->
+<!-- 17. Choice → Wait 5s -->
 <path d="M994,564 L1046,564" class="f-trade"/>
 <rect x="998" y="550" width="44" height="22" rx="3" fill="white" stroke="#E8851D" stroke-width="0.5"/>
 <text x="1020" y="560" class="arr-label" text-anchor="middle">no exit</text>
 <text x="1020" y="571" class="arr-label" text-anchor="middle" fill="#1D8102">condition</text>
 
-<!-- ─── 18. Wait 5s → Check Price (loop back) ─────────────────────────── -->
+<!-- 18. Wait 5s → Check Price (loop back) -->
 <path d="M1120,530 L1120,510 L720,510 L720,530" class="f-sched"/>
 <rect x="870" y="494" width="80" height="20" rx="3" fill="white" stroke="#687078" stroke-width="0.5"/>
 <text x="910" y="504" class="arr-label" text-anchor="middle" fill="#687078">loop every 5s</text>
 
-<!-- ─── 19. Check Price → EC2 (price snapshot) ────────────────────────── -->
+<!-- 19. Check Price → EC2 (price snapshot) -->
 <path d="M720,598 L720,820 Q720,880 680,880" class="f-exec"/>
 <rect x="616" y="724" width="116" height="24" rx="3" fill="white" stroke="#1D8102" stroke-width="0.5"/>
 <text x="674" y="734" class="arr-label" text-anchor="middle">GET /iserver/marketdata</text>
 <text x="674" y="744" class="arr-label" text-anchor="middle" fill="#1D8102">/snapshot?fields=31,84</text>
 
-<!-- ─── 20. Check Price → DDB Trades (heartbeat) ──────────────────────── -->
+<!-- 20. Check Price → DDB Trades (heartbeat) -->
 <path d="M720,598 L720,1076 Q720,1076 174,1076" class="f-data"/>
 <rect x="564" y="820" width="116" height="26" rx="3" fill="white" stroke="#0973BB" stroke-width="0.5"/>
 <text x="622" y="830" class="arr-label" text-anchor="middle">UpdateItem</text>
 <text x="622" y="840" class="arr-label" text-anchor="middle" fill="#0973BB">last_heartbeat + unrealized_pnl</text>
 
-<!-- ─── 21. Check Price → EventBridge (price event) ───────────────────── -->
+<!-- 21. Check Price → EventBridge (price event) -->
 <path d="M794,564 L794,960 Q794,1076 754,1076" class="f-event"/>
 <rect x="720" y="796" width="116" height="26" rx="3" fill="white" stroke="#8C4FFF" stroke-width="0.5"/>
 <text x="778" y="806" class="arr-label" text-anchor="middle">PutEvents PriceUpdate</text>
 <text x="778" y="816" class="arr-label" text-anchor="middle" fill="#8C4FFF">{trade_id, price, pnl}</text>
 
-<!-- ─── 22. EventBridge → SQS ─────────────────────────────────────────── -->
+<!-- 22. EventBridge → SQS -->
 <path d="M754,1114 L806,1114" class="f-event"/>
 <rect x="758" y="1098" width="44" height="24" rx="3" fill="white" stroke="#8C4FFF" stroke-width="0.5"/>
 <text x="780" y="1108" class="arr-label" text-anchor="middle">route</text>
 <text x="780" y="1119" class="arr-label" text-anchor="middle" fill="#8C4FFF">PriceUpdate</text>
 
-<!-- ─── 23. SQS → ECS Fargate ─────────────────────────────────────────── -->
+<!-- 23. SQS → ECS Fargate -->
 <path d="M954,1076 L1790,1076 L1790,728" class="f-event"/>
 <rect x="1340" y="1058" width="112" height="26" rx="3" fill="white" stroke="#8C4FFF" stroke-width="0.5"/>
 <text x="1396" y="1068" class="arr-label" text-anchor="middle">ReceiveMessage (poll)</text>
 <text x="1396" y="1079" class="arr-label" text-anchor="middle" fill="#8C4FFF">long-polling 5s</text>
 
-<!-- ─── 24. ECS Fargate → Browser (WebSocket push) ────────────────────── -->
+<!-- 24. ECS Fargate → Browser (WebSocket push) -->
 <path d="M1864,660 L1888,660 L1888,140 L1960,140 L1960,118" class="f-ws"/>
 <rect x="1878" y="370" width="90" height="26" rx="3" fill="white" stroke="#8C4FFF" stroke-width="0.5"/>
 <text x="1923" y="380" class="arr-label" text-anchor="middle">WebSocket push</text>
 <text x="1923" y="391" class="arr-label" text-anchor="middle" fill="#8C4FFF">{type,price,pnl}</text>
 
-<!-- ─── 25. Choice → Close Position (exit conditions) ────────────────────── -->
+<!-- 25. Choice → Close Position (exit conditions) -->
 <path d="M994,548 Q1270,500 1270,378" class="f-trade"/>
 <rect x="1094" y="462" width="108" height="30" rx="3" fill="white" stroke="#E8851D" stroke-width="0.5"/>
 <text x="1148" y="472" class="arr-label" text-anchor="middle">EXIT: STOP_HIT /</text>
 <text x="1148" y="482" class="arr-label" text-anchor="middle" fill="#C7131F">TP_HIT / TIMEOUT</text>
 <text x="1148" y="492" class="arr-label" text-anchor="middle" fill="#E8851D">{exit_reason, price}</text>
 
-<!-- ─── 26. Close Position → Log Trade ──────────────────────────────────── -->
+<!-- 26. Close Position → Log Trade -->
 <path d="M1344,344 L1406,344" class="f-trade"/>
 <rect x="1348" y="326" width="54" height="30" rx="3" fill="white" stroke="#E8851D" stroke-width="0.5"/>
 <text x="1375" y="336" class="arr-label" text-anchor="middle">{close_price,</text>
 <text x="1375" y="346" class="arr-label" text-anchor="middle" fill="#E8851D">pnl_usd}</text>
 
-<!-- ─── 27. Close Position → EC2 (market close) ──────────────────────── -->
+<!-- 27. Close Position → EC2 (market close) -->
 <path d="M1270,378 L1270,820 Q1270,880 680,880" class="f-exec"/>
 <rect x="1140" y="740" width="116" height="24" rx="3" fill="white" stroke="#1D8102" stroke-width="0.5"/>
 <text x="1198" y="750" class="arr-label" text-anchor="middle">POST market close</text>
 <text x="1198" y="760" class="arr-label" text-anchor="middle" fill="#1D8102">MKT {close_side, qty}</text>
 
-<!-- ─── 28. Log Trade → DDB Trades (final write) ─────────────────────── -->
+<!-- 28. Log Trade → DDB Trades (final write) -->
 <path d="M1480,378 L1480,1076 Q1480,1076 174,1076" class="f-data"/>
 <rect x="1340" y="716" width="104" height="26" rx="3" fill="white" stroke="#0973BB" stroke-width="0.5"/>
 <text x="1392" y="726" class="arr-label" text-anchor="middle">UpdateItem final</text>
 <text x="1392" y="737" class="arr-label" text-anchor="middle" fill="#0973BB">status=CLOSED + pnl</text>
 
-<!-- ─── 29. Log Trade → DDB Config (daily P&L) ─────────────────────── -->
+<!-- 29. Log Trade → DDB Config (daily P&L) -->
 <path d="M1480,378 L1480,1050 Q1480,1076 364,1076" class="f-data"/>
 <rect x="1458" y="808" width="108" height="26" rx="3" fill="white" stroke="#0973BB" stroke-width="0.5"/>
 <text x="1512" y="818" class="arr-label" text-anchor="middle">UpdateItem ADD</text>
 <text x="1512" y="828" class="arr-label" text-anchor="middle" fill="#0973BB">daily_pnl#{date}</text>
 
-<!-- ─── 30. Log Trade → SNS ──────────────────────────────────────────── -->
+<!-- 30. Log Trade → SNS -->
 <path d="M1480,378 L1480,1050 Q1480,1076 1354,1076" class="f-event"/>
 <rect x="1516" y="900" width="108" height="26" rx="3" fill="white" stroke="#C7131F" stroke-width="0.5"/>
 <text x="1570" y="910" class="arr-label" text-anchor="middle">Publish trade alert</text>
 <text x="1570" y="921" class="arr-label" text-anchor="middle" fill="#C7131F">SMS: P&amp;L, exit reason</text>
 
-<!-- ─── 31. EC2 CP Gateway → Interactive Brokers ──────────────────────── -->
+<!-- 31. EC2 CP Gateway → Interactive Brokers -->
 <path d="M680,862 L1814,862 L1814,538" class="f-exec"/>
 <rect x="1210" y="840" width="120" height="26" rx="3" fill="white" stroke="#1D8102" stroke-width="0.5"/>
 <text x="1270" y="850" class="arr-label" text-anchor="middle">IBKR Client Portal API</text>
 <text x="1270" y="861" class="arr-label" text-anchor="middle" fill="#1D8102">HTTPS :443 via NAT GW</text>
 
-<!-- ─── 32. Browser → Cognito (OAuth) ─────────────────────────────────── -->
+<!-- 32. Browser → Cognito (OAuth) -->
 <path d="M1888,118 L1888,200 L1864,256" class="f-auth"/>
 <rect x="1882" y="166" width="90" height="26" rx="3" fill="white" stroke="#C7131F" stroke-width="0.5"/>
 <text x="1927" y="176" class="arr-label" text-anchor="middle">OAuth2 PKCE</text>
 <text x="1927" y="187" class="arr-label" text-anchor="middle" fill="#C7131F">code flow</text>
 
-<!-- ─── 33. Cognito → ECS Fargate (JWKS validation) ──────────────────── -->
+<!-- 33. Cognito → ECS Fargate (JWKS validation) -->
 <path d="M1790,324 L1790,660" class="f-auth"/>
 <rect x="1696" y="484" width="90" height="26" rx="3" fill="white" stroke="#C7131F" stroke-width="0.5"/>
 <text x="1741" y="494" class="arr-label" text-anchor="middle">JWKS endpoint</text>
 <text x="1741" y="505" class="arr-label" text-anchor="middle" fill="#C7131F">JWT validation</text>
 
-<!-- ─── 34. Browser → CloudFront/ALB (REST calls) ─────────────────────── -->
+<!-- 34. Browser → CloudFront/ALB (REST calls) -->
 <path d="M1888,118 L1888,380 L1864,380" class="f-ws"/>
 <rect x="1876" y="246" width="90" height="26" rx="3" fill="white" stroke="#8C4FFF" stroke-width="0.5"/>
 <text x="1921" y="256" class="arr-label" text-anchor="middle">HTTPS GET</text>
@@ -742,7 +736,7 @@
 <text x="1292" y="788" class="arr-label" text-anchor="middle">GET /iserver/auth</text>
 <text x="1292" y="798" class="arr-label" text-anchor="middle" fill="#1D8102">/status (health)</text>
 
-<!-- ─── SAFETY NET FLOWS ──────────────────────────────────────────────── -->
+<!-- SAFETY NET FLOWS -->
 
 <!-- CW Events → Tickle -->
 <path d="M178,1320 L266,1320" class="f-sched"/>
@@ -825,11 +819,9 @@
 <!-- Secrets Manager → Lambda Authorizer (back) -->
 <path d="M1154,1076 Q1154,1060 300,238" class="f-auth" stroke-dasharray="4,3"/>
 
-<!-- ═══════════════════════════════════════════════════════════════════════
-     LEGEND
-═══════════════════════════════════════════════════════════════════════ -->
+<!-- LEGEND -->
 <rect x="1540" y="1240" width="472" height="260" rx="8" fill="white" stroke="#ddd" stroke-width="1"/>
-<text x="1560" y="1265" font-size="11" font-weight="700" fill="#232F3E" letter-spacing="0.1em" font-family="Helvetica Neue, Arial">LEGEND — ARROW FLOW TYPES</text>
+<text x="1560" y="1265" font-size="11" font-weight="700" fill="#232F3E" letter-spacing="0.1em" font-family="Helvetica Neue, Arial">LEGEND - ARROW FLOW TYPES</text>
 <line x1="1556" y1="1272" x2="2004" y2="1272" stroke="#eee" stroke-width="1"/>
 
 <!-- Trade/orchestration -->

@@ -1,12 +1,12 @@
 # trade-engine
 
-> **Why this exists**: NinjaTrader charges ~$100/month for live trade execution. This project eliminates that fee entirely by routing signals from a free NinjaTrader instance through a self-hosted cloud execution layer connecting directly to Interactive Brokers — your broker, your infrastructure, your cost.
+> **Why this exists**: NinjaTrader charges ~$100/month for live trade execution. This project eliminates that fee entirely by routing signals from a free NinjaTrader instance through a self-hosted cloud execution layer connecting directly to Interactive Brokers - your broker, your infrastructure, your cost.
 
 ---
 
 ## What This Does
 
-NinjaTrader is kept purely as a **signal generator** — the part it does for free. Every buy/sell signal fires an HTTPS call to AWS, where a Step Functions state machine owns the full trade lifecycle: risk checks, order placement, fill monitoring, stop management, and position closing. A live dashboard lets you watch everything in real time from a browser.
+NinjaTrader is kept purely as a **signal generator** - the part it does for free. Every buy/sell signal fires an HTTPS call to AWS, where a Step Functions state machine owns the full trade lifecycle: risk checks, order placement, fill monitoring, stop management, and position closing. A live dashboard lets you watch everything in real time from a browser.
 
 ```
 NinjaTrader (free tier, signal detection only)
@@ -33,7 +33,7 @@ trade-engine/
 │   ├── index.html
 │   ├── login.html
 │   └── js/
-│       ├── config.js                 ← ✏️ UPDATE: your AWS endpoints here (post-deploy)
+│       ├── config.js                 <- update: your AWS endpoints here (post-deploy)
 │       ├── auth.js
 │       ├── api.js
 │       └── websocket.js
@@ -64,9 +64,9 @@ trade-engine/
 │   └── monitoring_loop.asl.json      ← Express Workflow (nested)
 ├── gateway/
 │   └── config/
-│       └── ibgateway.env.example     ← ✏️ copy to ibgateway.env for local dev
+│       └── ibgateway.env.example     <- copy to ibgateway.env for local dev
 ├── ninjatrader/
-│   ├── OrchestratorClient.cs         ← ✏️ UPDATE: BaseUrl + ApiKey (post-deploy)
+│   ├── OrchestratorClient.cs         <- update: BaseUrl + ApiKey (post-deploy)
 │   └── MesConsolidationProfitHunter.cs
 └── infra/                            ← AWS SAM infrastructure-as-code
     ├── template.yaml                 ← root SAM template (Lambdas, Step Functions, API GW)
@@ -93,7 +93,7 @@ cd trade-engine/infra
 # Build all Lambda functions
 sam build
 
-# Deploy — fill in your actual values
+# Deploy - fill in your actual values
 sam deploy \
   --stack-name trade-engine \
   --region us-east-2 \
@@ -117,28 +117,28 @@ Then follow **SETUP.md** for the complete post-deploy configuration.
 
 ## Security Architecture
 
-### TLS — HTTPS Without a Custom Domain
+### TLS - HTTPS Without a Custom Domain
 
 | Endpoint | URL Format | TLS |
 |---|---|---|
 | Dashboard | `https://XXXX.cloudfront.net` | CloudFront built-in, auto-renews |
 | Signal / API | `https://XXXX.execute-api.REGION.amazonaws.com/prod` | API Gateway built-in, auto-renews |
 
-All Lambda-to-EC2 traffic stays inside the private VPC subnet — never touches the public internet.
+All Lambda-to-EC2 traffic stays inside the private VPC subnet - never touches the public internet.
 
-### Dashboard Authentication — Cognito + Google
+### Dashboard Authentication - Cognito + Google
 
 Only one specific Google account can log in. Everyone else gets 403.
 
-### NinjaTrader Signal Authentication — Lambda Authorizer
+### NinjaTrader Signal Authentication - Lambda Authorizer
 
 Every signal request is validated by a Lambda authorizer that checks:
 - `X-API-Key` header (stored in Secrets Manager, auto-generated on deploy)
 - Source IP must match `YourDesktopIp` parameter
 
-### IAM — Least Privilege
+### IAM - Least Privilege
 
-Each Lambda has only the permissions it needs for its specific task. No Lambda has `AdministratorAccess`. All secrets are in Secrets Manager — never in environment variables or code.
+Each Lambda has only the permissions it needs for its specific task. No Lambda has `AdministratorAccess`. All secrets are in Secrets Manager - never in environment variables or code.
 
 ---
 
@@ -182,7 +182,7 @@ Ec2InstanceId             i-XXXX
 | S3 + CloudFront | $0.02 |
 | SNS | $0.00 |
 | NAT Gateway | $7.14 |
-| **Total** | **~$36/month (3-AZ HA)** |
+| **Total** | **~$30/month (3-AZ HA)** |
 
 **vs NinjaTrader execution license: ~$100/month → saving ~$64/month**
 
@@ -215,5 +215,5 @@ aws s3 rm s3://$BUCKET --recursive
 sam delete --stack-name trade-engine --region us-east-2
 ```
 
-> DynamoDB tables have `DeletionPolicy: Retain` — your trade history is preserved.
+> DynamoDB tables have `DeletionPolicy: Retain` - your trade history is preserved.
 > Delete them manually in the AWS Console if you want a clean teardown.

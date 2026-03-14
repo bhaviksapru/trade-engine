@@ -1,4 +1,4 @@
-# samconfig.toml — SAM CLI configuration for trade-engine
+# samconfig.toml - SAM CLI configuration for trade-engine
 # Run: sam deploy --config-env default
 # Docs: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html
 

@@ -87,7 +87,7 @@ Records:
 
 ### Table 3: `trade-engine-positions`
 
-Current open positions — maintained by fill and close Lambdas. Fast read path for dashboard.
+Current open positions - maintained by fill and close Lambdas. Fast read path for dashboard.
 
 ```
 Partition Key: strategy_id  (String)
@@ -216,9 +216,9 @@ Bus name: `trade-engine-events`
 |---|---|
 | trade-engine-trades | Forever (trade history is valuable) |
 | trade-engine-config | Forever (1 record per key, small) |
-| trade-engine-positions | Current only — cleared on close |
+| trade-engine-positions | Current only - cleared on close |
 | daily_pnl records | Forever (small, ~250 records/year) |
-| CloudWatch Logs | 30 days (Terraform sets this) |
+| CloudWatch Logs | 30 days CloudFormation sets this |
 | EventBridge events | Consumed in real-time, not stored |
 
-Point-in-time recovery (PITR) is enabled on `trade-engine-trades` — you can restore to any point within 35 days.
+Point-in-time recovery (PITR) is enabled on `trade-engine-trades` - you can restore to any point within 35 days.

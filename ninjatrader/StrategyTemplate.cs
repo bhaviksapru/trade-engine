@@ -1,4 +1,4 @@
-// StrategyTemplate.cs — example NinjaTrader 8 strategy using OrchestratorClient
+// StrategyTemplate.cs - example NinjaTrader 8 strategy using OrchestratorClient
 // Replace signal logic with your own. The client call pattern stays the same.
 // Compile: NinjaTrader → Tools → Edit NinjaScript → Compile
 
@@ -49,7 +49,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
             else if (State == State.DataLoaded)
             {
-                // Initialise the client — picks up BaseUrl + ApiKey from the class constants
+                // Initialise the client - picks up BaseUrl + ApiKey from the class constants
                 _client = new OrchestratorClient(StrategyId);
                 Print($"[TradeEngine] Client initialized. Strategy: {StrategyId}");
             }
@@ -72,7 +72,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             bool crossedAbove = prevFast <= prevSlow && fastEma > slowEma;
             bool crossedBelow = prevFast >= prevSlow && fastEma < slowEma;
 
-            // ── ✏️ YOUR SIGNAL LOGIC GOES HERE ───────────────────────────────
+            // ──  YOUR SIGNAL LOGIC GOES HERE ───────────────────────────────
             // This EMA crossover is just an example. Replace with your strategy.
 
             if (crossedAbove)

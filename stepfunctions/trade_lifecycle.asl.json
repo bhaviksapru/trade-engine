@@ -1,5 +1,5 @@
 {
-  "Comment": "Trade Engine — Standard Workflow (outer trade lifecycle)",
+  "Comment": "Trade Engine - Standard Workflow (outer trade lifecycle)",
   "StartAt": "PreTradeRiskCheck",
   "States": {
 

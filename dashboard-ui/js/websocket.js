@@ -1,4 +1,4 @@
-// websocket.js — live WebSocket connection to FastAPI
+// websocket.js - live WebSocket connection to FastAPI
 // Receives real-time price + trade events, calls registered handlers
 
 const LiveFeed = (() => {

@@ -1,4 +1,4 @@
-# SETUP.md — Complete Installation Guide (AWS SAM)
+# SETUP.md - Complete Installation Guide (AWS SAM)
 
 This guide walks through every step from a fresh AWS account to a running trading system.
 Infrastructure is managed entirely with **AWS SAM** (no Terraform required).
@@ -11,15 +11,15 @@ Infrastructure is managed entirely with **AWS SAM** (no Terraform required).
 □ AWS account with billing enabled
 □ AWS CLI installed and configured  (https://aws.amazon.com/cli)
 □ AWS SAM CLI installed             (https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html)
-□ Docker installed locally          (https://docker.com) — required by SAM for Lambda builds
-□ NinjaTrader 8 on your desktop     (free tier is fine — signal generation only)
+□ Docker installed locally          (https://docker.com) - required by SAM for Lambda builds
+□ NinjaTrader 8 on your desktop     (free tier is fine - signal generation only)
 □ IBKR account                      (paper trading account works for testing)
 □ Google account                    (for dashboard login)
 ```
 
 ---
 
-## Step 1 — AWS CLI Setup
+## Step 1 - AWS CLI Setup
 
 ```bash
 aws configure
@@ -29,18 +29,18 @@ aws configure
 # Default output format: json
 ```
 
-Create a dedicated IAM user for deployment (recommended — don't use root):
+Create a dedicated IAM user for deployment (recommended - don't use root):
 ```
 AWS Console → IAM → Users → Create user
   Username: trade-engine-deployer
-  Permissions: AdministratorAccess (for initial deploy — can be scoped down later)
+  Permissions: AdministratorAccess (for initial deploy - can be scoped down later)
   → Create access key → Command Line Interface
   → aws configure with these keys
 ```
 
 ---
 
-## Step 2 — Google OAuth App
+## Step 2 - Google OAuth App
 
 This takes ~5 minutes and must be done before deploying.
 
@@ -56,11 +56,11 @@ This takes ~5 minutes and must be done before deploying.
    - Name: `trade-engine-web`
    - Leave redirect URIs **blank for now** (added in Step 6)
    - Click Create
-5. Copy the **Client ID** and **Client Secret** — needed in Step 3
+5. Copy the **Client ID** and **Client Secret** - needed in Step 3
 
 ---
 
-## Step 3 — Build and Deploy
+## Step 3 - Build and Deploy
 
 ```bash
 cd infra
@@ -116,7 +116,7 @@ CloudFrontDistributionId  EABC123DEF
 
 ---
 
-## Step 4 — Add Google Callback URLs
+## Step 4 - Add Google Callback URLs
 
 Now that Cognito is deployed, update your Google OAuth app:
 
@@ -163,7 +163,7 @@ aws cognito-idp update-user-pool-client \
 
 ---
 
-## Step 5 — Build and Push Dashboard Docker Image
+## Step 5 - Build and Push Dashboard Docker Image
 
 ```bash
 cd dashboard-api
@@ -201,7 +201,7 @@ aws ecs update-service \
 
 ---
 
-## Step 6 — Configure Dashboard UI
+## Step 6 - Configure Dashboard UI
 
 Update `dashboard-ui/js/config.js` with your actual output values:
 
@@ -253,7 +253,7 @@ aws cloudfront create-invalidation \
 
 ---
 
-## Step 7 — Configure NinjaTrader
+## Step 7 - Configure NinjaTrader
 
 Get your API key:
 ```bash
@@ -282,7 +282,7 @@ Copy both `.cs` files to NinjaTrader:
 
 ---
 
-## Step 8 — Verify the System
+## Step 8 - Verify the System
 
 Run these checks between 9:30am–4:00pm ET on a weekday.
 
@@ -344,7 +344,7 @@ AWS Console → Step Functions → State machines → trade-engine-trade-lifecyc
 
 ---
 
-## Step 9 — Switch to Live Trading
+## Step 9 - Switch to Live Trading
 
 Only after paper trading works correctly for at least **1 week**.
 
@@ -404,7 +404,7 @@ aws logs tail /ecs/trade-engine-dashboard-trade-engine --follow
 aws logs tail /aws/states/trade-engine-trade-lifecycle-trade-engine --follow
 ```
 
-### Every 90 Days — Rotate API Key
+### Every 90 Days - Rotate API Key
 
 ```bash
 # Generate a new key directly in Secrets Manager
@@ -424,7 +424,7 @@ aws secretsmanager update-secret \
 
 ```bash
 sam deploy ... --parameter-overrides YourDesktopIp="NEW.IP.ADDRESS" [other params]
-# Only Lambda authorizer and SG rules change — takes ~60 seconds, no downtime
+# Only Lambda authorizer and SG rules change - takes ~60 seconds, no downtime
 ```
 
 ### Destroy Everything
@@ -437,7 +437,7 @@ BUCKET=$(aws cloudformation describe-stacks \
   --output text)
 aws s3 rm s3://$BUCKET --recursive
 
-# Then delete the stack (DynamoDB tables have DeletionPolicy: Retain — delete manually if needed)
+# Then delete the stack (DynamoDB tables have DeletionPolicy: Retain - delete manually if needed)
 sam delete --stack-name trade-engine --region us-east-2
 ```
 
@@ -453,7 +453,7 @@ sam delete --stack-name trade-engine --region us-east-2
 | Dashboard login loops | Cognito callback URL wrong | Re-run Step 4 Cognito update command |
 | Dashboard login "Access Denied" | Wrong Google account | Only `AllowedGoogleEmail` can log in |
 | ECS task not starting | ECR image not pushed | Re-run Step 5 |
-| ECS task keeps restarting | App crash — check logs | `aws logs tail /ecs/trade-engine-dashboard-trade-engine --follow` |
+| ECS task keeps restarting | App crash - check logs | `aws logs tail /ecs/trade-engine-dashboard-trade-engine --follow` |
 | CP Gateway not authenticated at market open | EC2 took too long to start | Change `MarketOpenUtc` param 15 minutes earlier and redeploy |
 | Step Function stuck at WAIT_FOR_FILL | CP Gateway lost IB session | Check /health; trigger reauth via dashboard |
 | No SNS texts | Phone number not confirmed | AWS Console → SNS → Subscriptions → confirm your number |

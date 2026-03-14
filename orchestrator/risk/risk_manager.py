@@ -29,7 +29,7 @@ class RiskManager:
         # { (strategy_id, symbol, side): last_fill_timestamp }
         self._last_order: dict[tuple, float] = {}
         logger.info(
-            f"RiskManager init — max_pos={MAX_POSITION_SIZE} "
+            f"RiskManager init - max_pos={MAX_POSITION_SIZE} "
             f"max_daily_loss=${MAX_DAILY_LOSS_USD} "
             f"cooldown={ORDER_COOLDOWN_SECONDS}s"
         )
@@ -39,7 +39,7 @@ class RiskManager:
         if today != self._loss_date:
             self._daily_loss.clear()
             self._loss_date = today
-            logger.info("New trading day — daily loss counters reset.")
+            logger.info("New trading day - daily loss counters reset.")
 
     async def check(self, order, side: str) -> str | None:
         """
@@ -66,7 +66,7 @@ class RiskManager:
         cooldown_key = (order.strategy_id, order.symbol, side)
         last = self._last_order.get(cooldown_key, 0)
         if time.time() - last < ORDER_COOLDOWN_SECONDS:
-            return f"Order cooldown active for {order.symbol} {side} — wait {ORDER_COOLDOWN_SECONDS}s between signals"
+            return f"Order cooldown active for {order.symbol} {side} - wait {ORDER_COOLDOWN_SECONDS}s between signals"
 
         return None
 

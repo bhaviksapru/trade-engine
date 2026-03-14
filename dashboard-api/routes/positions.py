@@ -1,5 +1,5 @@
 """
-Positions and trades route — read-only DynamoDB queries for the dashboard.
+Positions and trades route - read-only DynamoDB queries for the dashboard.
 """
 import os
 import boto3
@@ -57,7 +57,7 @@ async def get_trades(
 
 @router.get("/risk")
 async def get_risk():
-    """Current risk state — daily P&L, limits, trading status."""
+    """Current risk state - daily P&L, limits, trading status."""
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     daily_pnl_item = config_table.get_item(Key={"pk": f"daily_pnl#{today}"}).get("Item", {})

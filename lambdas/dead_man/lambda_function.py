@@ -1,5 +1,5 @@
 """
-Dead Man Lambda — emergency safety net. Runs every 5 minutes, 24/7.
+Dead Man Lambda - emergency safety net. Runs every 5 minutes, 24/7.
 Scans DynamoDB for open positions where last_heartbeat is stale (>15min).
 If found: forcefully closes position at IB and stops the Step Functions execution.
 This is the last line of defense if all other components fail.
@@ -71,7 +71,7 @@ def handler(event, context):
         quantity = int(trade.get("quantity", 1))
         execution_arn = trade.get("execution_arn")
 
-        logger.warning(f"Closing orphaned trade: {trade_id} — {side} {quantity} {symbol}")
+        logger.warning(f"Closing orphaned trade: {trade_id} - {side} {quantity} {symbol}")
 
         # 1. Stop Step Functions execution if running
         if execution_arn:

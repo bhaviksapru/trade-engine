@@ -1,5 +1,5 @@
 """
-Log Trade Lambda — final trade record, updates daily P&L, fires SNS alert.
+Log Trade Lambda - final trade record, updates daily P&L, fires SNS alert.
 Called as last state in both normal close and rejected/failed paths.
 """
 import os, json, boto3, logging
@@ -28,7 +28,7 @@ def handler(event, context):
     exit_reason = event.get("exit_reason", "")
     pnl_usd     = float(event.get("pnl_usd", 0))
 
-    logger.info(f"[{trade_id}] Logging trade — status={status} pnl={pnl_usd}")
+    logger.info(f"[{trade_id}] Logging trade - status={status} pnl={pnl_usd}")
 
     # Update final trade record
     now = datetime.now(timezone.utc).isoformat()
@@ -102,7 +102,7 @@ def _maybe_notify(trade_id, status, symbol, side, quantity, fill_price, close_pr
         pnl_str = f"+${pnl:.2f}" if pnl > 0 else f"-${abs(pnl):.2f}"
 
         message = (
-            f"{emoji} Trade Engine — {status}\n"
+            f"{emoji} Trade Engine - {status}\n"
             f"{side} {quantity} {symbol} [{exit_reason}]\n"
             f"Fill: ${fill_price:.2f} → Close: ${close_price:.2f}\n"
             f"P&L: {pnl_str}\n"
@@ -112,7 +112,7 @@ def _maybe_notify(trade_id, status, symbol, side, quantity, fill_price, close_pr
         sns_client.publish(
             TopicArn=SNS_TOPIC,
             Message=message,
-            Subject=f"Trade Engine — {status} {symbol}",
+            Subject=f"Trade Engine - {status} {symbol}",
         )
         logger.info(f"[{trade_id}] SNS alert sent")
     except Exception as e:

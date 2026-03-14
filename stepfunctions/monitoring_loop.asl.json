@@ -1,5 +1,5 @@
 {
-  "Comment": "Trade Engine — Express Workflow (nested monitoring loop, chains every 5min)",
+  "Comment": "Trade Engine - Express Workflow (nested monitoring loop, chains every 5min)",
   "StartAt": "CheckPrice",
   "States": {
 
@@ -63,7 +63,7 @@
     },
 
     "ChainExecution": {
-      "Comment": "Near 5-min Express limit — start fresh execution with same context",
+      "Comment": "Near 5-min Express limit - start fresh execution with same context",
       "Type": "Task",
       "Resource": "arn:aws:states:::states:startExecution",
       "Parameters": {

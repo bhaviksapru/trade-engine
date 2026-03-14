@@ -1,5 +1,5 @@
 """
-WebSocket live route — streams real-time trade events to the browser dashboard.
+WebSocket live route - streams real-time trade events to the browser dashboard.
 Subscribes to EventBridge events published by check_price Lambda.
 Uses asyncio queue to fan out to connected clients.
 """
@@ -87,7 +87,7 @@ async def websocket_live(websocket: WebSocket, token: str = Query(...)):
             _clients.discard((websocket, queue))
 
 
-# ── EventBridge SQS poller ───────────────────────────────────────────────────
+# --- EventBridge SQS poller ---
 # EventBridge → SQS queue → this background task → WebSocket clients
 
 SQS_QUEUE_URL = os.environ.get("EVENTS_SQS_QUEUE_URL", "")
@@ -101,7 +101,7 @@ async def poll_eventbridge_sqs():
     Runs for the lifetime of the Fargate task.
     """
     if not sqs or not SQS_QUEUE_URL:
-        logger.warning("No SQS queue configured — WebSocket live feed disabled")
+        logger.warning("No SQS queue configured - WebSocket live feed disabled")
         return
 
     logger.info("Starting EventBridge SQS poller...")

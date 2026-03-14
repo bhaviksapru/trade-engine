@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>Trade Engine — AWS Reference Architecture</title>
+<title>Trade Engine - AWS Reference Architecture</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Amazon+Ember:wght@400;700&display=swap');
 
@@ -15,7 +15,7 @@
     color: #1a1a1a;
   }
 
-  /* ── Page header ── */
+  /* Page header */
   .page-header {
     background: #232F3E;
     color: white;
@@ -32,14 +32,14 @@
     letter-spacing: 0.05em;
   }
 
-  /* ── Canvas ── */
+  /* Canvas */
   .canvas {
     padding: 24px 32px 32px;
     min-width: 1400px;
     position: relative;
   }
 
-  /* ── Group boxes ── */
+  /* Group boxes */
   .group {
     position: absolute;
     border-radius: 6px;
@@ -102,7 +102,7 @@
   }
   .external-box .group-label { color: #5f6b7c; }
 
-  /* ── Service nodes ── */
+  /* Service nodes */
   .svc {
     position: absolute;
     display: flex;
@@ -145,7 +145,7 @@
   .cat-ml         { background: #F3E5F5; }
   .cat-external   { background: #F5F5F5; }
 
-  /* ── Arrows / connections drawn in SVG overlay ── */
+  /* Arrows / connections drawn in SVG overlay */
   #arrows {
     position: absolute;
     top: 0; left: 0;
@@ -158,7 +158,7 @@
   .arr-purple { stroke: #8C4FFF; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead-purple); }
   .arr-red    { stroke: #D13212; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead-red); }
 
-  /* ── Connection labels ── */
+  /* Connection labels */
   .conn-label {
     position: absolute;
     font-size: 8.5px;
@@ -171,7 +171,7 @@
     line-height: 1.4;
   }
 
-  /* ── Legend ── */
+  /* Legend */
   .legend {
     position: absolute;
     bottom: 20px;
@@ -187,7 +187,7 @@
   .legend-line { width: 24px; height: 2px; flex-shrink: 0; }
   .legend-box { width: 14px; height: 10px; border-radius: 2px; flex-shrink: 0; }
 
-  /* ── Footer ── */
+  /* Footer */
   .page-footer {
     background: #F2F3F3;
     border-top: 1px solid #ddd;
@@ -202,7 +202,7 @@
 </head>
 <body>
 
-<!-- ── Page Header ─────────────────────────────────────────────────── -->
+<!-- Page Header -->
 <div class="page-header">
   <div>
     <div class="aws-logo">
@@ -213,7 +213,7 @@
       </svg>
       AWS
     </div>
-    <h1 style="color:white; margin-top:4px;">Trade Engine — Reference Architecture</h1>
+    <h1 style="color:white; margin-top:4px;">Trade Engine - Reference Architecture</h1>
     <div class="meta">AWS Region: us-east-2 (Ohio) · NinjaTrader Signal Execution via Interactive Brokers CP Gateway</div>
   </div>
   <div style="text-align:right; color:#aaa; font-size:10px;">
@@ -223,7 +223,7 @@
   </div>
 </div>
 
-<!-- ── Main Canvas ────────────────────────────────────────────────── -->
+<!-- Main Canvas -->
 <div class="canvas" style="height:1180px; position:relative;">
 
   <!-- Arrow SVG overlay -->
@@ -315,9 +315,9 @@
     <path d="M 990,355 L 990,870 L 650,870" class="arr-blue"/>
   </svg>
 
-  <!-- ══════════════════════════════════════════════════════════════════ -->
+  
   <!-- EXTERNAL: NinjaTrader                                              -->
-  <!-- ══════════════════════════════════════════════════════════════════ -->
+  
   <div class="group external-box" style="left:20px; top:30px; width:130px; height:90px;">
     <div class="group-label">External</div>
     <div class="svc" style="left:28px; top:12px;">
@@ -342,9 +342,9 @@
   <!-- Connection label: HTTPS POST /signal -->
   <div class="conn-label" style="left:136px; top:59px;">HTTPS POST<br/>X-API-Key</div>
 
-  <!-- ══════════════════════════════════════════════════════════════════ -->
+  
   <!-- EXTERNAL: Browser                                                  -->
-  <!-- ══════════════════════════════════════════════════════════════════ -->
+  
   <div class="group external-box" style="left:1210px; top:30px; width:130px; height:90px;">
     <div class="group-label">External</div>
     <div class="svc" style="left:28px; top:12px;">
@@ -360,13 +360,13 @@
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════════════════════════════ -->
+  
   <!-- AWS REGION BOX                                                     -->
-  <!-- ══════════════════════════════════════════════════════════════════ -->
+  
   <div class="group region-box" style="left:200px; top:20px; width:1000px; height:1100px;">
-    <div class="group-label">AWS Region — us-east-2</div>
+    <div class="group-label">AWS Region - us-east-2</div>
 
-    <!-- ── API Gateway + Authorizer ── -->
+    <!-- API Gateway + Authorizer -->
     <div class="svc" style="left:32px; top:35px;">
       <div class="icon-wrap cat-network">
         <!-- API Gateway icon -->
@@ -408,9 +408,9 @@
       <div class="svc-sub">signal<br/>StartExecution</div>
     </div>
 
-    <!-- ── Step Functions Standard box ── -->
+    <!-- Step Functions Standard box -->
     <div class="group sf-standard-box" style="left:14px; top:215px; width:980px; height:240px;">
-      <div class="group-label">AWS Step Functions — Standard Workflow (Trade Lifecycle)</div>
+      <div class="group-label">AWS Step Functions - Standard Workflow (Trade Lifecycle)</div>
 
       <!-- Risk Check Lambda -->
       <div class="svc" style="left:20px; top:40px;">
@@ -462,7 +462,7 @@
 
       <!-- Express WF nested box -->
       <div class="group sf-express-box" style="left:375px; top:20px; width:350px; height:200px;">
-        <div class="group-label">Express Workflow — Monitoring Loop (chains every 5min)</div>
+        <div class="group-label">Express Workflow - Monitoring Loop (chains every 5min)</div>
 
         <!-- Check Price Lambda -->
         <div class="svc" style="left:20px; top:50px;">
@@ -535,13 +535,13 @@
       <!-- Arrows inside SF box (relative to sf box: left=14,top=215 + canvas padding) -->
     </div><!-- /sf-standard-box -->
 
-    <!-- ── VPC Box ── -->
+    <!-- VPC Box -->
     <div class="group vpc-box" style="left:14px; top:490px; width:800px; height:320px;">
-      <div class="group-label">VPC — 10.0.0.0/16 · 3 AZs · 3 NAT Gateways</div>
+      <div class="group-label">VPC - 10.0.0.0/16 · 3 AZs · 3 NAT Gateways</div>
 
       <!-- Private Subnet box -->
       <div class="group subnet-box" style="left:14px; top:24px; width:770px; height:270px;">
-        <div class="group-label">Private Subnets — 10.0.10.0/24 (1a) · 10.0.11.0/24 (1b) · 10.0.12.0/24 (1c)</div>
+        <div class="group-label">Private Subnets - 10.0.10.0/24 (1a) · 10.0.11.0/24 (1b) · 10.0.12.0/24 (1c)</div>
 
         <!-- sg-lambda-workers box -->
         <div class="group sg-box" style="left:10px; top:24px; width:310px; height:220px;">
@@ -664,7 +664,7 @@
       </div><!-- /subnet-box -->
     </div><!-- /vpc-box -->
 
-    <!-- ── CloudFront + S3 ── -->
+    <!-- CloudFront + S3 -->
     <div class="svc" style="left:818px; top:35px;">
       <div class="icon-wrap cat-network">
         <!-- CloudFront icon -->
@@ -692,7 +692,7 @@
       <div class="svc-sub">dashboard-ui<br/>static files</div>
     </div>
 
-    <!-- ── Cognito ── -->
+    <!-- Cognito -->
     <div class="svc" style="left:818px; top:120px;">
       <div class="icon-wrap cat-security">
         <!-- Cognito icon -->
@@ -707,7 +707,7 @@
       <div class="svc-sub">Google IdP<br/>JWT + PKCE</div>
     </div>
 
-    <!-- ── Background Schedulers (right) ── -->
+    <!-- Background Schedulers (right) -->
     <div class="group sg-box" style="left:830px; top:370px; width:155px; height:240px;">
       <div class="group-label">Scheduled Lambdas</div>
 
@@ -757,7 +757,7 @@
       </div>
     </div>
 
-    <!-- ── Managed Services row ── -->
+    <!-- Managed Services row -->
     <!-- DynamoDB -->
     <div class="svc" style="left:40px; top:840px;">
       <div class="icon-wrap cat-database">
@@ -851,7 +851,7 @@
 
   </div><!-- /region-box -->
 
-  <!-- ── External: Interactive Brokers ── -->
+  <!-- External: Interactive Brokers -->
   <div class="group external-box" style="left:1220px; top:610px; width:130px; height:90px;">
     <div class="group-label">External</div>
     <div class="svc" style="left:28px; top:12px;">
@@ -871,9 +871,9 @@
   <!-- Connection label: HTTPS to IBKR -->
   <div class="conn-label" style="left:1110px; top:618px;">HTTPS :443<br/>via NAT GW</div>
 
-  <!-- ══════════════════════════════════════════════════════════════════ -->
+  
   <!-- LEGEND                                                             -->
-  <!-- ══════════════════════════════════════════════════════════════════ -->
+  
   <div class="legend" style="bottom:16px; right:16px;">
     <h3>Legend</h3>
     <div class="legend-item"><div class="legend-line" style="background:#FF9900;"></div> Trade flow / Lambda invocation</div>
@@ -899,7 +899,7 @@
 
 </div><!-- /canvas -->
 
-<!-- ── Page Footer ─────────────────────────────────────────────────── -->
+<!-- Page Footer -->
 <div class="page-footer">
   <div>Trade Engine · AWS Reference Architecture · SAM Deployment</div>
   <div>~$36/month at 20 trades/day (3-AZ HA) · saves ~$64/month vs NinjaTrader execution license</div>
