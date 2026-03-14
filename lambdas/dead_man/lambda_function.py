@@ -128,14 +128,14 @@ def handler(event, context):
     })
 
     message = (
-        f"🚨 DEAD MAN TRIGGERED\n"
+        f"DEAD MAN TRIGGERED\n"
         f"Orphaned positions: {len(orphaned)}\n"
         f"Closed: {closed}\n"
         f"Failed to close: {failed}\n"
         f"Trading disabled. Re-enable from dashboard after investigation."
     )
     try:
-        sns.publish(TopicArn=SNS_TOPIC_ARN, Message=message, Subject="🚨 Trade Engine Emergency")
+        sns.publish(TopicArn=SNS_TOPIC_ARN, Message=message, Subject="Trade Engine - Emergency")
         logger.info("Emergency SNS alert sent")
     except Exception as e:
         logger.error(f"SNS alert failed: {e}")

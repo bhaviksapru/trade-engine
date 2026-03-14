@@ -68,7 +68,7 @@ def handler(event, context):
         # All reauth attempts failed
         logger.error("All reauthentication attempts failed - disabling trading")
         _set_trading_enabled(False, reason="reauth_failed")
-        _alert("⚠️ IBKR CP Gateway authentication failed after 3 attempts. Trading disabled. Manual intervention required.")
+        _alert("IBKR CP Gateway authentication failed after 3 attempts. Trading disabled. Manual intervention required.")
         return {"status": "auth_failed"}
 
 

@@ -98,11 +98,10 @@ def _maybe_notify(trade_id, status, symbol, side, quantity, fill_price, close_pr
         if not should_notify:
             return
 
-        emoji  = "🟢" if pnl > 0 else ("🔴" if pnl < 0 else "⚪")
         pnl_str = f"+${pnl:.2f}" if pnl > 0 else f"-${abs(pnl):.2f}"
 
         message = (
-            f"{emoji} Trade Engine - {status}\n"
+            f"Trade Engine - {status}\n"
             f"{side} {quantity} {symbol} [{exit_reason}]\n"
             f"Fill: ${fill_price:.2f} → Close: ${close_price:.2f}\n"
             f"P&L: {pnl_str}\n"

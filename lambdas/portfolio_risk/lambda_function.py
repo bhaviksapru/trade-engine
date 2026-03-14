@@ -109,14 +109,14 @@ def handler(event, context):
 
     # Alert
     message = (
-        f"🚨 PORTFOLIO RISK LIMIT HIT\n"
+        f"PORTFOLIO RISK LIMIT HIT\n"
         f"Total P&L: ${total_pnl:.2f} (limit: -${abs(max_daily_loss):.2f})\n"
         f"Closed: {len(closed)} positions\n"
         f"Failed: {len(failed)}\n"
         f"Trading disabled. Check dashboard."
     )
     try:
-        sns_client.publish(TopicArn=SNS_TOPIC, Message=message, Subject="🚨 Trade Engine Risk Limit")
+        sns_client.publish(TopicArn=SNS_TOPIC, Message=message, Subject="Trade Engine - Risk Limit")
     except Exception as e:
         logger.error(f"SNS alert failed: {e}")
 
