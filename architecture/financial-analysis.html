@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>06 — Financial Analysis · Trade Engine</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:         #080909;
+      --dark:       #0d0f0f;
+      --panel:      #111414;
+      --panel2:     #161919;
+      --border:     #212525;
+      --border2:    #2b3030;
+      --amber:      #f5a623;
+      --amber-dim:  #c47d0e;
+      --amber-glow: rgba(245,166,35,0.07);
+      --white:      #ede9e0;
+      --muted:      #5e6464;
+      --text:       #aaa69e;
+      --green:      #4caf7d;
+      --red:        #e05555;
+      --yellow:     #f5c623;
+      --blue:       #5b8de8;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+      overflow-x: hidden;
+    }
+
+    /* noise overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.5;
+    }
+
+    /* ── HEADER ── */
+    .doc-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 6vw;
+      height: 58px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .doc-header-left {
+      display: flex;
+      align-items: center;
+      gap: 1.2rem;
+    }
+
+    .doc-num-badge {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1rem;
+      color: var(--amber);
+      letter-spacing: 0.08em;
+      border: 1px solid var(--amber-dim);
+      padding: 0.15rem 0.55rem;
+      background: var(--amber-glow);
+      line-height: 1.4;
+    }
+
+    .doc-header-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.05rem;
+      letter-spacing: 0.08em;
+      color: var(--white);
+    }
+
+    .back-link {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: color 0.2s;
+    }
+    .back-link:hover { color: var(--amber); }
+
+    /* ── PAGE LAYOUT ── */
+    .page-wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 5rem 6vw 8rem;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      margin-bottom: 5rem;
+    }
+
+    .eyebrow {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+    .eyebrow::before {
+      content: '';
+      display: inline-block;
+      width: 20px;
+      height: 1px;
+      background: var(--amber);
+    }
+
+    .hero-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3.5rem, 8vw, 7rem);
+      line-height: 0.9;
+      color: var(--white);
+      margin-bottom: 1.5rem;
+    }
+
+    .hero-sub {
+      font-size: 0.9rem;
+      line-height: 1.8;
+      color: var(--muted);
+      max-width: 640px;
+    }
+
+    /* ── SECTION HEADERS ── */
+    .section {
+      margin-bottom: 4rem;
+    }
+
+    .section-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.58rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+    .section-label::before {
+      content: '';
+      display: inline-block;
+      width: 16px;
+      height: 1px;
+      background: var(--amber);
+    }
+
+    .section-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(2rem, 4vw, 3rem);
+      color: var(--white);
+      line-height: 1;
+      margin-bottom: 1.5rem;
+    }
+
+    /* ── SUMMARY HERO CARDS ── */
+    .summary-band {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      margin-bottom: 4rem;
+    }
+
+    .s-card {
+      background: var(--panel);
+      padding: 2rem 1.8rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .s-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0;
+      width: 100%;
+      height: 2px;
+      background: var(--amber);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.35s ease;
+    }
+    .s-card:hover { background: var(--panel2); }
+    .s-card:hover::after { transform: scaleX(1); }
+
+    .s-card-val {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 3.4rem;
+      line-height: 1;
+      color: var(--amber);
+      letter-spacing: 0.02em;
+      margin-bottom: 0.4rem;
+    }
+    .s-card-val.green { color: var(--green); }
+    .s-card-val.red   { color: var(--red); }
+
+    .s-card-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ── COST TABLE ── */
+    .cost-table-wrap {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      overflow: hidden;
+      margin-bottom: 2rem;
+    }
+
+    .cost-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .cost-table thead tr {
+      background: var(--panel2);
+      border-bottom: 1px solid var(--border2);
+    }
+
+    .cost-table th {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.56rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 1rem 1.2rem;
+      text-align: left;
+      font-weight: 400;
+    }
+    .cost-table th:last-child { text-align: right; }
+
+    .cost-table tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    .cost-table tbody tr:last-child { border-bottom: none; }
+    .cost-table tbody tr:hover { background: rgba(245,166,35,0.03); }
+
+    .cost-table td {
+      padding: 0.9rem 1.2rem;
+      font-size: 0.8rem;
+    }
+
+    .cost-table .td-service {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--white);
+      letter-spacing: 0.04em;
+    }
+
+    .cost-table .td-cost {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      text-align: right;
+    }
+    .cost-table .td-cost.free { color: var(--green); }
+    .cost-table .td-cost.low  { color: var(--text); }
+    .cost-table .td-cost.mid  { color: var(--amber); }
+    .cost-table .td-cost.high { color: var(--red); }
+
+    .cost-table .td-note {
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .cost-table tfoot tr {
+      border-top: 2px solid var(--amber-dim);
+      background: var(--amber-glow);
+    }
+    .cost-table tfoot td {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.05rem;
+      letter-spacing: 0.06em;
+      padding: 1rem 1.2rem;
+    }
+    .cost-table tfoot .td-service { color: var(--amber); }
+    .cost-table tfoot .td-cost {
+      color: var(--amber);
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.05rem;
+    }
+
+    /* tier badge */
+    .tier-dot {
+      display: inline-block;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      margin-right: 0.5rem;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+    .tier-dot.free { background: var(--green); }
+    .tier-dot.low  { background: var(--text); }
+    .tier-dot.mid  { background: var(--amber); }
+    .tier-dot.high { background: var(--red); }
+
+    /* ── COMPARISON BLOCK ── */
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      margin-bottom: 2rem;
+    }
+
+    .compare-card {
+      background: var(--panel);
+      padding: 2.5rem 2.5rem;
+      position: relative;
+    }
+
+    .compare-card.winner {
+      background: var(--panel2);
+    }
+
+    .compare-card.winner::before {
+      content: 'WINNER';
+      position: absolute;
+      top: 1.2rem; right: 1.2rem;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.52rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--amber);
+      background: var(--amber-glow);
+      border: 1px solid var(--amber-dim);
+      padding: 0.2rem 0.6rem;
+    }
+
+    .compare-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.6rem;
+    }
+
+    .compare-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2rem;
+      color: var(--white);
+      line-height: 1;
+      margin-bottom: 1.5rem;
+    }
+
+    .compare-price {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 4.5rem;
+      line-height: 1;
+      margin-bottom: 0.3rem;
+    }
+    .compare-price.expensive { color: var(--red); }
+    .compare-price.cheap     { color: var(--green); }
+
+    .compare-price-sub {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 2rem;
+    }
+
+    .compare-feature {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      padding: 0.45rem 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .compare-feature:last-child { border-bottom: none; }
+    .compare-feature .cf-icon { flex-shrink: 0; }
+    .cf-check { color: var(--green); }
+    .cf-cross  { color: var(--red); }
+    .cf-neutral { color: var(--muted); }
+
+    /* ── BREAKEVEN CHART ── */
+    .breakeven-wrap {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      padding: 2rem 2.2rem;
+      margin-bottom: 2rem;
+    }
+
+    .breakeven-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.58rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1.2rem;
+    }
+
+    .be-chart {
+      position: relative;
+      height: 160px;
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+    }
+
+    .be-bar {
+      flex: 1;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: center;
+    }
+
+    .be-bar-fill {
+      width: 100%;
+      border-top: 2px solid transparent;
+      position: relative;
+      transition: opacity 0.2s;
+    }
+    .be-bar-fill:hover { opacity: 0.85; }
+
+    .be-bar-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.52rem;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 0.4rem;
+      white-space: nowrap;
+    }
+
+    .be-bar-val {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.58rem;
+      letter-spacing: 0.04em;
+      text-align: center;
+      margin-bottom: 0.3rem;
+    }
+
+    .be-baseline {
+      position: absolute;
+      bottom: 22px;
+      left: 0; right: 0;
+      height: 1px;
+      background: var(--border2);
+    }
+
+    /* ── SCALING TABLE ── */
+    .scaling-wrap {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      overflow: hidden;
+      margin-bottom: 2rem;
+    }
+
+    /* ── REDUCTION OPTIONS ── */
+    .options-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      margin-bottom: 2rem;
+    }
+
+    .option-card {
+      background: var(--panel);
+      padding: 2rem 1.8rem;
+      position: relative;
+      overflow: hidden;
+      transition: background 0.2s;
+    }
+    .option-card:hover { background: var(--panel2); }
+
+    .option-letter {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 3.5rem;
+      line-height: 1;
+      color: var(--border2);
+      margin-bottom: 1rem;
+      transition: color 0.2s;
+    }
+    .option-card:hover .option-letter { color: var(--amber-dim); }
+
+    .option-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.3rem;
+      color: var(--white);
+      line-height: 1.1;
+      margin-bottom: 0.5rem;
+    }
+
+    .option-saving {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.68rem;
+      color: var(--green);
+      letter-spacing: 0.06em;
+      margin-bottom: 0.8rem;
+    }
+
+    .option-desc {
+      font-size: 0.78rem;
+      line-height: 1.65;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    .option-new-total {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-top: 1px solid var(--border2);
+      padding-top: 0.8rem;
+      margin-top: 0.5rem;
+    }
+    .option-new-total strong {
+      color: var(--amber);
+      font-size: 0.75rem;
+    }
+
+    .risk-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.52rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.2rem 0.55rem;
+      border: 1px solid;
+      margin-bottom: 0.8rem;
+    }
+    .risk-chip.low    { border-color: rgba(76,175,125,0.4); color: var(--green); }
+    .risk-chip.medium { border-color: rgba(245,166,35,0.4); color: var(--amber); }
+    .risk-chip.high   { border-color: rgba(224,85,85,0.4);  color: var(--red); }
+
+    /* ── ASSUMPTIONS BLOCK ── */
+    .assumptions-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      margin-bottom: 2rem;
+    }
+
+    .assumption-cell {
+      background: var(--panel);
+      padding: 1.4rem 1.6rem;
+    }
+
+    .assumption-val {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.2rem;
+      color: var(--white);
+      line-height: 1;
+      margin-bottom: 0.3rem;
+    }
+
+    .assumption-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.58rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* ── FOOTNOTE ── */
+    .doc-footer {
+      margin-top: 5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .footer-note {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.58rem;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+
+    .footer-brand {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1rem;
+      letter-spacing: 0.08em;
+      color: var(--white);
+    }
+    .footer-brand span { color: var(--amber); }
+
+    /* ── ANNOTATION ── */
+    .inline-note {
+      border-left: 2px solid var(--amber-dim);
+      padding: 0.6rem 1rem;
+      margin: 1rem 0 1.5rem;
+      background: var(--amber-glow);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .inline-note strong { color: var(--amber); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .summary-band { grid-template-columns: 1fr 1fr; }
+      .compare-grid { grid-template-columns: 1fr; }
+      .options-grid { grid-template-columns: 1fr; }
+      .assumptions-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 600px) {
+      .summary-band { grid-template-columns: 1fr 1fr; }
+      .assumptions-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="doc-header">
+    <div class="doc-header-left">
+      <div class="doc-num-badge">06</div>
+      <div class="doc-header-title">Financial Analysis</div>
+    </div>
+    <a class="back-link" href="../index.html">← Back to overview</a>
+  </header>
+
+  <div class="page-wrap">
+
+    <!-- HERO -->
+    <div class="hero">
+      <div class="eyebrow">Cost Architecture · AWS us-east-2</div>
+      <h1 class="hero-title">Financial<br/>Analysis</h1>
+      <p class="hero-sub">
+        Complete cost breakdown for running the Trade Engine on AWS at 20 trades/day with 3-AZ high availability. 
+        Includes service-by-service itemisation, NinjaTrader comparison, scaling projections, 
+        and cost reduction options with explicit trade-off analysis.
+      </p>
+    </div>
+
+    <!-- ASSUMPTIONS -->
+    <div class="section">
+      <div class="section-label">Baseline</div>
+      <div class="section-title">Model Assumptions</div>
+      <div class="assumptions-grid">
+        <div class="assumption-cell">
+          <div class="assumption-val">21</div>
+          <div class="assumption-label">Trading days/month<br/>US market average</div>
+        </div>
+        <div class="assumption-cell">
+          <div class="assumption-val">7.5h</div>
+          <div class="assumption-label">Active hours/day<br/>9:00am – 4:30pm ET</div>
+        </div>
+        <div class="assumption-cell">
+          <div class="assumption-val">157.5h</div>
+          <div class="assumption-label">Compute hours/month<br/>21 × 7.5hrs</div>
+        </div>
+        <div class="assumption-cell">
+          <div class="assumption-val">20</div>
+          <div class="assumption-label">Trades per day<br/>baseline volume</div>
+        </div>
+        <div class="assumption-cell">
+          <div class="assumption-val">420</div>
+          <div class="assumption-label">Trades per month<br/>20 × 21 days</div>
+        </div>
+        <div class="assumption-cell">
+          <div class="assumption-val">30min</div>
+          <div class="assumption-label">Avg trade duration<br/>monitoring loop basis</div>
+        </div>
+      </div>
+      <div class="inline-note">
+        <strong>Region:</strong> us-east-2 (Ohio) — generally cheapest US region for EC2, NAT, and ALB. 
+        Pricing reflects on-demand rates as of 2024. Check aws.amazon.com/pricing for current rates.
+      </div>
+    </div>
+
+    <!-- SUMMARY HERO METRICS -->
+    <div class="section">
+      <div class="section-label">Bottom Line</div>
+      <div class="section-title">Cost Summary</div>
+      <div class="summary-band">
+        <div class="s-card">
+          <div class="s-card-val">~$42</div>
+          <div class="s-card-label">Total monthly cost<br/>3-AZ HA on AWS</div>
+        </div>
+        <div class="s-card">
+          <div class="s-card-val green">~$696</div>
+          <div class="s-card-label">Annual saving<br/>vs NinjaTrader licence</div>
+        </div>
+        <div class="s-card">
+          <div class="s-card-val">51%</div>
+          <div class="s-card-label">Cheaper than NinjaTrader<br/>at 200 trades/day</div>
+        </div>
+        <div class="s-card">
+          <div class="s-card-val green">&lt;3wk</div>
+          <div class="s-card-label">Break-even point<br/>infrastructure pays for itself</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPARISON -->
+    <div class="section">
+      <div class="section-label">Head to Head</div>
+      <div class="section-title">NinjaTrader vs Trade Engine</div>
+      <div class="compare-grid">
+        <!-- NinjaTrader -->
+        <div class="compare-card">
+          <div class="compare-label">Incumbent</div>
+          <div class="compare-name">NinjaTrader<br/>Execution Licence</div>
+          <div class="compare-price expensive">$100</div>
+          <div class="compare-price-sub">per month · fixed</div>
+          <div class="compare-feature">
+            <span class="cf-icon cf-check">✓</span>
+            Fully managed — no ops overhead
+          </div>
+          <div class="compare-feature">
+            <span class="cf-icon cf-check">✓</span>
+            Built-in IB integration
+          </div>
+          <div class="compare-feature">
+            <span class="cf-icon cf-cross">✗</span>
+            Fixed cost regardless of trade volume
+          </div>
+          <div class="compare-feature">
+            <span class="cf-icon cf-cross">✗</span>
+            No programmatic control over risk logic
+          </div>
+          <div class="compare-feature">
+            <span class="cf-icon cf-cross">✗</span>
+            No real-time custom dashboard
+          </div>
+          <div class="compare-feature">
+            <span class="cf-icon cf-cross">✗</span>
+            No multi-AZ redundancy
+          </div>
+        </div>
+        <!-- Trade Engine -->
+        <div class="compare-card winner">
+          <div class="compare-label">Replacement</div>
+          <div class="compare-name">Trade Engine<br/>on AWS</div>
+          <div class="compare-price cheap">$42</div>
+          <div class="compare-price-sub">per month · 3-AZ HA</div>
+          <div class="compare-feature">
+            <span class="cf-icon cf-check">✓</span>
+            Scales to zero outside market hours
+          </div>
+          <div class="compare-feature">
+            <span class="cf-icon cf-check">✓</span>
+            Full trade lifecycle via Step Functions
+          </div>
+          <div class="compare-feature">
+            <span class="cf-icon cf-check">✓</span>
+            Custom risk engine — per-trade Lambda checks
+          </div>
+          <div class="compare-feature">
+            <span class="cf-icon cf-check">✓</span>
+            Live dashboard with real-time P&L + health
+          </div>
+          <div class="compare-feature">
+            <span class="cf-icon cf-check">✓</span>
+            3-AZ high availability — survives AZ failure
+          </div>
+          <div class="compare-feature">
+            <span class="cf-icon cf-neutral">~</span>
+            Requires initial setup + light ops overhead
+          </div>
+        </div>
+      </div>
+
+      <!-- Breakeven bar chart -->
+      <div class="breakeven-wrap">
+        <div class="breakeven-title">Cumulative saving over 12 months (NinjaTrader licence cost − Trade Engine cost)</div>
+        <div class="be-chart" id="be-chart">
+          <div class="be-baseline"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COST TABLE -->
+    <div class="section">
+      <div class="section-label">Service-by-Service</div>
+      <div class="section-title">Monthly Itemisation</div>
+
+      <div class="cost-table-wrap">
+        <table class="cost-table">
+          <thead>
+            <tr>
+              <th>Service</th>
+              <th>Monthly Cost</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="td-service">
+                <span class="tier-dot high"></span>NAT Gateway (×3)
+              </td>
+              <td class="td-cost high">$21.31</td>
+              <td class="td-note">One per AZ — market hours only. $0.045/hr × 3 × 157.5hrs + data.</td>
+            </tr>
+            <tr>
+              <td class="td-service">
+                <span class="tier-dot mid"></span>ALB (Dashboard)
+              </td>
+              <td class="td-cost mid">$6.26</td>
+              <td class="td-note">Always-on. Fargate tasks behind it scale to 0 overnight.</td>
+            </tr>
+            <tr>
+              <td class="td-service">
+                <span class="tier-dot mid"></span>Internal NLB (CP Gateway)
+              </td>
+              <td class="td-cost mid">$5.81</td>
+              <td class="td-note">Always-on. Stable DNS for ASG. 0 healthy targets outside hours.</td>
+            </tr>
+            <tr>
+              <td class="td-service">
+                <span class="tier-dot low"></span>EC2 t3.small
+              </td>
+              <td class="td-cost low">$3.28</td>
+              <td class="td-note">CP Gateway — market hours only via ASG ScheduledAction. $14.98/mo if always-on.</td>
+            </tr>
+            <tr>
+              <td class="td-service">
+                <span class="tier-dot low"></span>Secrets Manager
+              </td>
+              <td class="td-cost low">$1.60</td>
+              <td class="td-note">4 secrets × $0.40/secret. IB creds, API key, Cognito secret, Google OAuth.</td>
+            </tr>
+            <tr>
+              <td class="td-service">
+                <span class="tier-dot low"></span>CloudWatch Logs
+              </td>
+              <td class="td-cost low">$1.06</td>
+              <td class="td-note">~2GB/month ingestion at $0.50/GB. 30-day rolling retention.</td>
+            </tr>
+            <tr>
+              <td class="td-service">
+                <span class="tier-dot low"></span>CloudWatch Alarms
+              </td>
+              <td class="td-cost low">$1.20</td>
+              <td class="td-note">12 alarms × $0.10/month. Lambda errors, SF failures, ECS task count.</td>
+            </tr>
+            <tr>
+              <td class="td-service">
+                <span class="tier-dot low"></span>Step Functions Express
+              </td>
+              <td class="td-cost low">$0.80</td>
+              <td class="td-note">302,400 transitions/month — 5s monitoring loop. $1/M transitions + GB-seconds.</td>
+            </tr>
+            <tr>
+              <td class="td-service">
+                <span class="tier-dot low"></span>ECS Fargate (Spot)
+              </td>
+              <td class="td-cost low">$0.59</td>
+              <td class="td-note">0.25 vCPU / 0.5GB. ~70% off on-demand. Falls back to on-demand if no Spot.</td>
+            </tr>
+            <tr>
+              <td class="td-service">
+                <span class="tier-dot low"></span>DynamoDB
+              </td>
+              <td class="td-cost low">$0.04</td>
+              <td class="td-note">On-demand. ~21,000 writes, ~15,500 reads/month. ~10MB storage year 1.</td>
+            </tr>
+            <tr>
+              <td class="td-service">
+                <span class="tier-dot low"></span>S3 + CloudFront
+              </td>
+              <td class="td-cost low">$0.02</td>
+              <td class="td-note">50KB static dashboard. ~500 loads/month. Negligible.</td>
+            </tr>
+            <tr>
+              <td class="td-service">
+                <span class="tier-dot free"></span>Lambda (11 functions)
+              </td>
+              <td class="td-cost free">$0.00</td>
+              <td class="td-note">~85,100 GB-seconds/month vs 400,000 free tier. Effectively free at this scale.</td>
+            </tr>
+            <tr>
+              <td class="td-service">
+                <span class="tier-dot free"></span>Step Functions Standard
+              </td>
+              <td class="td-cost free">$0.00</td>
+              <td class="td-note">3,360 transitions/month. Free tier covers first 4,000.</td>
+            </tr>
+            <tr>
+              <td class="td-service">
+                <span class="tier-dot free"></span>API Gateway
+              </td>
+              <td class="td-cost free">$0.00</td>
+              <td class="td-note">~1,000 requests/month. Free tier: 1,000,000 requests/month.</td>
+            </tr>
+            <tr>
+              <td class="td-service">
+                <span class="tier-dot free"></span>EventBridge
+              </td>
+              <td class="td-cost free">$0.00</td>
+              <td class="td-note">~304,500 events/month. Free tier: 1,000,000 custom bus events.</td>
+            </tr>
+            <tr>
+              <td class="td-service">
+                <span class="tier-dot free"></span>Cognito User Pool
+              </td>
+              <td class="td-cost free">$0.00</td>
+              <td class="td-note">1 MAU (single operator). Free tier: 50,000 MAUs/month — permanent.</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td class="td-service">Total</td>
+              <td class="td-cost">~$41.97</td>
+              <td class="td-note" style="color:var(--muted);font-family:'DM Sans',sans-serif;font-size:0.75rem;">
+                On-demand pricing · 3-AZ HA · 20 trades/day
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="inline-note">
+        <strong>NAT Gateway dominates at 50.8% of total cost.</strong> 
+        Three gateways are provisioned for AZ-level redundancy — if AZ-a's NAT fails, 
+        Lambda and Fargate in AZ-b/c retain internet egress. See Cost Reduction Options below to trade this off.
+      </div>
+    </div>
+
+    <!-- SCALING -->
+    <div class="section">
+      <div class="section-label">Volume Sensitivity</div>
+      <div class="section-title">Cost at Scale</div>
+
+      <p style="font-size:0.85rem;line-height:1.75;color:var(--muted);margin-bottom:1.5rem;max-width:640px;">
+        Fixed infrastructure (NAT, ALB, NLB, EC2) dominates at low volumes. 
+        Only Step Functions Express grows meaningfully with trade count. 
+        Lambda, DynamoDB, EventBridge, and API Gateway stay in free tier even at 10× volume.
+      </p>
+
+      <div class="scaling-wrap">
+        <table class="cost-table">
+          <thead>
+            <tr>
+              <th>Trades/Day</th>
+              <th>Trades/Month</th>
+              <th>SF Express</th>
+              <th>Lambda</th>
+              <th>DynamoDB</th>
+              <th>Fixed Costs</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="td-service">20 <span style="color:var(--amber);font-size:0.6rem;margin-left:0.4rem">baseline</span></td>
+              <td class="td-cost" style="text-align:left">420</td>
+              <td class="td-cost low">$0.80</td>
+              <td class="td-cost free">$0.00</td>
+              <td class="td-cost free">$0.04</td>
+              <td class="td-cost mid">$41.13</td>
+              <td class="td-cost mid" style="color:var(--amber)">~$42</td>
+            </tr>
+            <tr>
+              <td class="td-service">50</td>
+              <td class="td-cost" style="text-align:left">1,050</td>
+              <td class="td-cost low">$2.00</td>
+              <td class="td-cost free">$0.00</td>
+              <td class="td-cost low">$0.10</td>
+              <td class="td-cost mid">$41.13</td>
+              <td class="td-cost mid">~$43</td>
+            </tr>
+            <tr>
+              <td class="td-service">100</td>
+              <td class="td-cost" style="text-align:left">2,100</td>
+              <td class="td-cost low">$4.00</td>
+              <td class="td-cost free">$0.00</td>
+              <td class="td-cost low">$0.20</td>
+              <td class="td-cost mid">$41.13</td>
+              <td class="td-cost mid">~$45</td>
+            </tr>
+            <tr>
+              <td class="td-service">200</td>
+              <td class="td-cost" style="text-align:left">4,200</td>
+              <td class="td-cost low">$8.00</td>
+              <td class="td-cost low">$0.00</td>
+              <td class="td-cost low">$0.40</td>
+              <td class="td-cost mid">$41.13</td>
+              <td class="td-cost mid">~$49</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="inline-note">
+        At 200 trades/day — 10× baseline — total cost is ~$49/month. 
+        <strong>Still 51% cheaper than NinjaTrader</strong>, with full 3-AZ redundancy 
+        and no licensing constraints.
+      </div>
+    </div>
+
+    <!-- COST REDUCTION OPTIONS -->
+    <div class="section">
+      <div class="section-label">Trade-offs</div>
+      <div class="section-title">Cost Reduction Options</div>
+
+      <p style="font-size:0.85rem;line-height:1.75;color:var(--muted);margin-bottom:1.5rem;max-width:640px;">
+        The defaults above already apply Fargate Spot and scheduled EC2 start/stop. 
+        The options below go further — each carries real operational consequences.
+      </p>
+
+      <div class="options-grid">
+        <!-- Option A -->
+        <div class="option-card">
+          <div class="option-letter">A</div>
+          <div class="option-name">Single NAT<br/>Gateway</div>
+          <div class="risk-chip medium">⚠ Medium Risk</div>
+          <div class="option-saving">Save ~$14.22/month</div>
+          <p class="option-desc">
+            Remove NAT GW in AZ-b and AZ-c. All private route tables point at AZ-a's gateway. 
+            If AZ-a's NAT fails, Lambda and Fargate in AZ-b/c lose internet egress — 
+            the tickle Lambda stops, and active trades risk orphaning until dead_man closes them. 
+            The EC2 CP Gateway itself is in AZ-a so its IBKR traffic is unaffected.
+          </p>
+          <div class="option-new-total">New total: <strong>~$27.75/mo</strong></div>
+        </div>
+        <!-- Option B -->
+        <div class="option-card">
+          <div class="option-letter">B</div>
+          <div class="option-name">NAT Instance<br/>per AZ</div>
+          <div class="risk-chip medium">⚠ Medium Risk</div>
+          <div class="option-saving">Save ~$18.85/month vs 3× GW</div>
+          <p class="option-desc">
+            Replace each NAT Gateway with a t3.nano EC2 instance running Amazon Linux 2 
+            with IP forwarding + iptables MASQUERADE. 3 instances × 157.5hrs = ~$2.46/mo. 
+            t3.nano baseline is ~32 Mbps — well above IBKR's single-contract data feed. 
+            Trade-off: manual patching, instance replacement on hardware failure, lower SLA than managed NAT GW.
+          </p>
+          <div class="option-new-total">New total: <strong>~$21.12/mo</strong></div>
+        </div>
+        <!-- Option C -->
+        <div class="option-card">
+          <div class="option-letter">C</div>
+          <div class="option-name">Single-AZ<br/>Deployment</div>
+          <div class="risk-chip high">✕ High Risk</div>
+          <div class="option-saving">Save ~$14/month vs 3-AZ</div>
+          <p class="option-desc">
+            Run everything in one AZ — one public subnet, one private subnet, one NAT gateway. 
+            No AZ redundancy: an AZ outage takes down EC2, Fargate, and Lambda simultaneously. 
+            Correct choice for development environments or if NinjaTrader and the system 
+            share the same physical machine (making AZ redundancy academic).
+          </p>
+          <div class="option-new-total">New total: <strong>~$27/mo</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ANNUAL COMPARISON -->
+    <div class="section">
+      <div class="section-label">Annual View</div>
+      <div class="section-title">Year One Comparison</div>
+
+      <div class="cost-table-wrap">
+        <table class="cost-table">
+          <thead>
+            <tr>
+              <th>Line Item</th>
+              <th>Monthly</th>
+              <th>Annual</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="td-service">NinjaTrader execution licence</td>
+              <td class="td-cost high">~$100</td>
+              <td class="td-cost high">~$1,200</td>
+            </tr>
+            <tr>
+              <td class="td-service">Trade Engine (AWS, 3-AZ HA)</td>
+              <td class="td-cost mid">~$42</td>
+              <td class="td-cost mid">~$504</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td class="td-service">Annual Saving</td>
+              <td class="td-cost" style="color:var(--green)">~$58</td>
+              <td class="td-cost" style="color:var(--green)">~$696</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="inline-note">
+        <strong>Break-even:</strong> The initial AWS infrastructure setup cost is amortised in under 3 weeks of trading. 
+        After that, the system saves ~$58/month indefinitely — growing proportionally if the NinjaTrader licence price increases.
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="doc-footer">
+      <div class="footer-note">
+        Pricing reflects AWS on-demand rates as of 2024 · us-east-2 (Ohio) · subject to change
+      </div>
+      <div class="footer-brand">Trade <span>Engine</span></div>
+    </div>
+
+  </div><!-- /page-wrap -->
+
+  <script>
+    // ── Breakeven Bar Chart ──────────────────────────────────
+    (function() {
+      const chart = document.getElementById('be-chart');
+      if (!chart) return;
+
+      // Cumulative saving per month: ($100 - $42) = $58/mo
+      const NT_COST = 100;
+      const TE_COST = 42;
+      const saving  = NT_COST - TE_COST;
+
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const maxVal  = saving * 12; // $696
+      const chartH  = 130; // px available for bars (above the label row)
+
+      months.forEach((m, i) => {
+        const cumulative = saving * (i + 1);
+        const heightPct  = (cumulative / maxVal) * 100;
+        const heightPx   = Math.round((heightPct / 100) * chartH);
+
+        const isNT = cumulative < 100; // before break-even
+        const color = isNT ? 'var(--border2)' : 'var(--green)';
+        const textColor = isNT ? 'var(--muted)' : 'var(--green)';
+
+        const bar = document.createElement('div');
+        bar.className = 'be-bar';
+        bar.innerHTML = `
+          <div class="be-bar-val" style="color:${textColor};font-size:0.5rem">$${cumulative}</div>
+          <div class="be-bar-fill" style="height:${heightPx}px;background:${color};border-top-color:${color}"></div>
+          <div class="be-bar-label">${m}</div>
+        `;
+        chart.appendChild(bar);
+      });
+    })();
+  </script>
+
+</body>
+</html>
