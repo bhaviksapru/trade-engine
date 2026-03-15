@@ -7,7 +7,7 @@ Rules enforced here (in addition to the Lambda-side risk_check):
   - Daily loss check reads live DynamoDB value on every call so the orchestrator
     sees the same realized P&L that the Lambda risk_check sees.
 
-⚠️  SINGLE-REPLICA NOTE:
+SINGLE-REPLICA NOTE:
 _positions and _last_order are in-process state. With ECS service count > 1
 each replica has independent state, making the soft position limit inaccurate.
 For multi-replica deployments replace _positions with a shared DynamoDB or
