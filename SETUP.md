@@ -90,7 +90,7 @@ sam deploy \
 ```
 
 > SAM will show a changeset preview and ask for confirmation. Review it, then type **y**.
-> The full deploy takes approximately **10–15 minutes** (EC2 bootstrap is the slow step).
+> The full deploy takes approximately **10–15 minutes** (VPC and NAT Gateway creation are the slow steps).
 
 When complete, save all outputs:
 ```bash
@@ -109,7 +109,7 @@ CognitoHostedUi           https://trade-engine-xxx.auth.us-east-2.amazoncognito.
 CognitoCallbackUrl        https://trade-engine-xxx.auth.us-east-2.amazoncognito.com/oauth2/idpresponse
 CognitoClientId           1abc2def3ghi4jkl
 EcrRepositoryUrl          123456789.dkr.ecr.us-east-2.amazonaws.com/trade-engine-dashboard-trade-engine
-Ec2InstanceId             i-0abc123def456789
+CpGatewayAsgName          trade-engine-cp-gateway-trade-engine
 S3BucketName              trade-engine-dashboard-trade-engine-123456789
 CloudFrontDistributionId  EABC123DEF
 ```
@@ -208,6 +208,9 @@ Update `dashboard-ui/js/config.js` with your actual output values:
 ```javascript
 window.CONFIG = {
   apiUrl:          "PASTE_ApiGatewayUrl_HERE",
+  // WebSocket URL: same domain as DashboardUrl, replace https:// with wss://
+  // CloudFront already routes /live* to the ALB (see frontend.yaml)
+  wsUrl:           "wss://PASTE_CloudFront_DOMAIN_HERE/live",
   dashboardUrl:    "PASTE_DashboardUrl_HERE",
   cognitoDomain:   "PASTE_CognitoDomain_HERE",
   // e.g. "https://trade-engine-xxx.auth.us-east-2.amazoncognito.com"
@@ -303,20 +306,20 @@ Copy both `.cs` files to NinjaTrader:
 
 ## Step 8 - Verify the System
 
-Run these checks between 9:30am–4:00pm ET on a weekday.
+Run these checks between 9:30am–4:00pm ET on a weekday (the ASG scales to 1 at market open).
 
-**Check 1: EC2 started**
+**Check 1: CP Gateway ASG has a running instance**
 ```bash
-EC2_ID=$(aws cloudformation describe-stacks \
+ASG_NAME=$(aws cloudformation describe-stacks \
   --stack-name trade-engine \
-  --query "Stacks[0].Outputs[?OutputKey=='Ec2InstanceId'].OutputValue" \
+  --query "Stacks[0].Outputs[?OutputKey=='CpGatewayAsgName'].OutputValue" \
   --output text)
 
-aws ec2 describe-instances \
-  --instance-ids $EC2_ID \
-  --query 'Reservations[0].Instances[0].State.Name' \
+aws autoscaling describe-auto-scaling-groups \
+  --auto-scaling-group-names $ASG_NAME \
+  --query 'AutoScalingGroups[0].Instances[0].HealthStatus' \
   --output text
-# Expected: running
+# Expected: Healthy
 ```
 
 **Check 2: ECS task running**
@@ -373,7 +376,7 @@ aws secretsmanager update-secret \
   --secret-id trade-engine/ib-credentials-trade-engine \
   --secret-string '{"username":"IB_USER","password":"IB_PASS","account_id":"IB_ACCT","mode":"live"}'
 
-# Redeploy with live mode (re-creates EC2 UserData with updated secret)
+# Redeploy with live mode (updates the Launch Template UserData with new secret reference)
 sam deploy \
   --stack-name trade-engine \
   --region us-east-2 \
@@ -382,13 +385,22 @@ sam deploy \
   --no-confirm-changeset \
   --parameter-overrides IbMode=live [... rest of parameters ...]
 
-# Reboot EC2 to pick up new credentials
-EC2_ID=$(aws cloudformation describe-stacks \
+# Terminate the running ASG instance so it relaunches with the updated UserData
+# The ASG will automatically replace it (desired=1 is maintained during market hours)
+ASG_NAME=$(aws cloudformation describe-stacks \
   --stack-name trade-engine \
-  --query "Stacks[0].Outputs[?OutputKey=='Ec2InstanceId'].OutputValue" \
+  --query "Stacks[0].Outputs[?OutputKey=='CpGatewayAsgName'].OutputValue" \
   --output text)
-aws ec2 reboot-instances --instance-ids $EC2_ID
-# Wait 3 minutes, then check /health
+
+INSTANCE_ID=$(aws autoscaling describe-auto-scaling-groups \
+  --auto-scaling-group-names $ASG_NAME \
+  --query 'AutoScalingGroups[0].Instances[0].InstanceId' \
+  --output text)
+
+aws autoscaling terminate-instance-in-auto-scaling-group \
+  --instance-id $INSTANCE_ID \
+  --no-should-decrement-desired-capacity
+# Wait ~3-5 minutes for the replacement instance to launch and IB Gateway to authenticate
 ```
 
 ---
@@ -477,9 +489,9 @@ sam delete --stack-name trade-engine --region us-east-2
 | Dashboard login "Access Denied" | Wrong Google account | Only `AllowedGoogleEmail` can log in |
 | ECS task not starting | ECR image not pushed | Re-run Step 5 |
 | ECS task keeps restarting | App crash - check logs | `aws logs tail /ecs/trade-engine-dashboard-trade-engine --follow` |
-| CP Gateway not authenticated at market open | EC2 took too long to start | Change `MarketOpenUtc` param 15 minutes earlier and redeploy |
+| CP Gateway not authenticated at market open | IB Gateway still initialising | Grace period is 10min; wait and retry. If persistent, check UserData logs via SSM Session Manager on the instance |
 | Step Function stuck at WAIT_FOR_FILL | CP Gateway lost IB session | Check /health; trigger reauth via dashboard |
 | No SNS texts | Phone number not confirmed | AWS Console → SNS → Subscriptions → confirm your number |
 | Dead man fired unexpectedly | Heartbeat gap > 15min | Check `check_price` Lambda CloudWatch logs |
 | sam build fails | Docker not running | Start Docker Desktop, retry |
-| SAM deploy timeout | EC2 UserData taking too long | Check EC2 instance System Log in AWS Console |
+| SAM deploy timeout | VPC/NAT provisioning slow | Check CloudFormation events in AWS Console |

@@ -97,34 +97,46 @@ Monthly cost:      $0.00  (entirely within free tier)
 
 ---
 
-## Application Load Balancer
+## Application Load Balancer (Dashboard)
 
-The ALB is created at market open and deleted at market close each day.
-This is handled automatically by the `alb_manager` Lambda, which is triggered
-by the same EventBridge rules that start and stop EC2 and Fargate.
+The ALB is permanently deployed in the 3 public subnets and fronts the ECS
+Fargate dashboard service. CloudFront routes API and WebSocket traffic through
+it. The ALB stays up 24/7; only the Fargate tasks behind it are scaled to 0
+outside market hours.
 
 ```
 Hourly rate:       $0.008/hour
-Hours/month:       157.5 (market hours only)
-Fixed cost:        $0.008 x 157.5 = $1.26
+Hours/month:       720 (always-on)
+Fixed cost:        $0.008 x 720 = $5.76
 
-LCU charges:       ~$0.10 (minimal traffic)
-Monthly total:     ~$1.36
+LCU charges:       ~$0.50 (minimal traffic)
+Monthly total:     ~$6.26
+```
 
-vs always-on ALB:  $6.26/month
-Saving:            $4.90/month
+---
 
-Note: CloudFront's AlbOrigin domain is updated each morning by alb_manager
-because the ALB gets a new DNS name on every create. The ECS target group
-is never deleted, so registered task IPs survive across day boundaries.
+## Internal Network Load Balancer (CP Gateway)
+
+The internal NLB sits in the 3 private subnets and provides a stable DNS name
+for the CP Gateway ASG. When the ASG replaces the EC2 instance across AZs,
+the NLB DNS name stays constant so Lambdas and Fargate tasks never need
+reconfiguring. The NLB stays up 24/7; there are simply 0 healthy targets
+registered outside market hours.
+
+```
+Hourly rate:       $0.008/hour
+Hours/month:       720 (always-on)
+Fixed cost:        $0.008 x 720 = $5.76
+
+LCU charges:       ~$0.05 (low-volume TCP traffic)
+Monthly total:     ~$5.81
 ```
 
 ---
 
 ## Lambda Functions
 
-11 core Lambda functions plus the new alb_manager. Most run only during market
-hours (157.5hrs/month).
+11 core Lambda functions. Most run only during market hours (157.5hrs/month).
 
 | Lambda | Invocations/month | Avg duration | Memory |
 |---|---|---|---|
@@ -139,7 +151,6 @@ hours (157.5hrs/month).
 | tickle | 8,505 (every 55s x 157.5hrs) | 200ms | 128MB |
 | portfolio_risk | 9,450 (every 60s x 157.5hrs) | 300ms | 128MB |
 | dead_man | 8,748 (every 5min x 720hrs - runs 24/7) | 300ms | 128MB |
-| alb_manager | 42 (2x per trading day x 21 days) | 30s | 128MB |
 
 ```
 Total GB-seconds: ~85,100
@@ -203,7 +214,7 @@ Log retention set to 30 days in CloudFormation.
 
 ```
 Log groups:
-  /aws/lambda/trade-engine-* (12 functions including alb_manager)
+  /aws/lambda/trade-engine-* (11 functions)
   /ecs/trade-engine-dashboard
   /aws/ec2/cp-gateway
 
@@ -311,12 +322,12 @@ Monthly total: $21.31
 
 ## CloudWatch Alarms
 
-13 alarms covering Lambda errors, Step Functions failures, and ECS task count.
+12 alarms covering Lambda errors, Step Functions failures, and ECS task count.
 
 ```
-Alarms:            13
+Alarms:            12
 Rate:              $0.10/alarm/month (standard resolution)
-Monthly cost:      $1.30
+Monthly cost:      $1.20
 
 Each alarm feeds the existing SNS topic - no additional SNS cost.
 ```
@@ -329,8 +340,9 @@ Each alarm feeds the existing SNS topic - no additional SNS cost.
 | Service | Cost | Notes |
 |---|---|---|
 | NAT Gateway (x3) | $21.31 | One per AZ, market hours only |
-| ALB | $1.36 | Market hours only (was $6.26 always-on) |
-| EC2 t3.small | $3.28 | Market hours only |
+| ALB (dashboard) | $6.26 | Always-on, Fargate tasks scale to 0 overnight |
+| Internal NLB (CP Gateway) | $5.81 | Always-on, 0 healthy targets overnight |
+| EC2 t3.small | $3.28 | Market hours only (ASG ScheduledAction) |
 | ECS Fargate (Spot) | $0.59 | Market hours, ~70% off on-demand |
 | Secrets Manager | $1.60 | Fixed per secret |
 | CloudWatch Logs | $1.06 | 30-day retention |
@@ -342,8 +354,8 @@ Each alarm feeds the existing SNS topic - no additional SNS cost.
 | EventBridge | $0.00 | Free tier |
 | Cognito User Pool | $0.00 | Free tier — single operator (1 MAU vs 50,000 free) |
 | S3 + CloudFront | $0.02 | Tiny static site |
-| CloudWatch Alarms | $1.30 | 13 alarms, Lambda + SF + ECS |
-| **Total** | **~$31.36** | |
+| CloudWatch Alarms | $1.20 | 12 alarms, Lambda + SF + ECS |
+| **Total** | **~$41.97** | |
 
 ---
 
@@ -352,8 +364,8 @@ Each alarm feeds the existing SNS topic - no additional SNS cost.
 | | Monthly | Annual |
 |---|---|---|
 | NinjaTrader execution licence | ~$100 | ~$1,200 |
-| trade-engine (AWS, 3-AZ HA) | ~$31 | ~$372 |
-| **Saving** | **~$69** | **~$828** |
+| trade-engine (AWS, 3-AZ HA) | ~$42 | ~$504 |
+| **Saving** | **~$58** | **~$696** |
 
 Break-even: infrastructure pays for itself in under 3 weeks of trading.
 
@@ -370,13 +382,13 @@ At higher trade volumes, only Step Functions Express increases meaningfully:
 | 100 | $4.00 | +$3.20 |
 | 200 | $8.00 | +$7.20 |
 
-Even at 200 trades/day, total cost is ~$38/month - still 62% cheaper than NinjaTrader.
+Even at 200 trades/day, total cost is ~$49/month - still 51% cheaper than NinjaTrader.
 
 ---
 
 ## Cost Reduction Options
 
-These are explicit trade-offs. The defaults above (3x NAT, scheduled ALB, Fargate Spot)
+These are explicit trade-offs. The defaults above (3x NAT, always-on ALB+NLB, Fargate Spot)
 are already applied. The options below go further and carry real operational costs.
 
 ### Option A: Single NAT Gateway instead of three
@@ -386,7 +398,7 @@ same gateway.
 
 ```
 Saving:    $14.22/month ($21.31 -> $7.09)
-New total: ~$15.84/month
+New total: ~$27.75/month
 
 Trade-off: If AZ-a's NAT fails, Lambda and Fargate tasks in AZ-b and AZ-c
            lose internet egress. In practice this means the tickle Lambda
@@ -413,7 +425,7 @@ t3.nano on-demand:  $0.0052/hour
 
 Saving vs 3x NAT GW: $18.85/month
 Saving vs 1x NAT GW: $4.63/month
-New total: ~$11.21/month
+New total: ~$21.12/month
 
 Trade-off: A NAT instance is a single point of failure per AZ. It requires
            maintenance (patching, instance replacement on hardware failure).
@@ -436,22 +448,10 @@ Run everything in one AZ. One public subnet, one private subnet, one NAT.
 
 ```
 Infrastructure saving: ~$14/month vs current 3-AZ design
-New total: ~$16/month
+New total: ~$27/month
 
 Trade-off: No redundancy at all. An AZ outage takes down EC2, Fargate, and
            Lambda simultaneously. This is the right choice for development or
            if NinjaTrader and this system are on the same physical machine
            anyway (making AZ redundancy academic).
-```
-
-### Option D: Remove the ALB entirely
-
-Expose Fargate directly through CloudFront using a custom origin with the
-Fargate task's private IP. This requires a VPN or AWS PrivateLink since
-CloudFront cannot reach a private IP directly. Alternatively, run the
-dashboard API as a Lambda function URL instead of Fargate.
-
-```
-Saving: $1.36/month (already scheduled - diminishing returns)
-Complexity: High. Not recommended unless you are migrating away from ECS.
 ```

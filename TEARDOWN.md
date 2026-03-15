@@ -52,8 +52,8 @@ fi
 ### Step 3 - Delete the SAM stack
 
 Removes all CloudFormation-managed resources: VPC, subnets, NAT Gateways, security
-groups, Lambdas, Step Functions, API Gateway, ALB, ECS, Fargate, Cognito, EventBridge,
-SQS, SNS, and the SAM deployment artifact bucket.
+groups, Lambdas, Step Functions, API Gateway, ALB, NLB, ECS, Fargate, Cognito,
+EventBridge, SQS, SNS, and the SAM deployment artifact bucket.
 
 ```bash
 sam delete --stack-name trade-engine --region us-east-2
@@ -105,7 +105,7 @@ SUFFIX=trade-engine
 
 for fn in signal risk-check place-order wait-for-fill set-stop check-price \
           close-position log-trade tickle portfolio-risk dead-man \
-          api-authorizer pre-token config-seed; do
+          api-authorizer alb-manager pre-token config-seed; do
   aws logs delete-log-group \
     --log-group-name "/aws/lambda/trade-engine-${fn}-${SUFFIX}" \
     --region us-east-2 2>/dev/null || true
@@ -190,7 +190,7 @@ resources and data. You do not need to run any of the steps above first.
 |---|---|
 | Resources running at the moment of closure | Yes - billed up to the hour/minute they are terminated |
 | S3 storage in the current billing month | Yes - pro-rated for days used |
-| NAT Gateway / ALB hours in current month | Yes - up to the hour of termination |
+| NAT Gateway / ALB / NLB hours in current month | Yes - up to the hour of termination |
 | Secrets Manager API calls in current month | Yes - whatever accrued before closure |
 | Any charges after closure | No - billing stops completely |
 | Secrets Manager 7-day recovery window | Not applicable - account closure bypasses it |
@@ -230,6 +230,6 @@ AWS Console
 | S3 dashboard bucket | Blocks deletion | Non-empty bucket cannot be deleted | Step 1 |
 | SAM artifact bucket | No | `sam delete` handles this | - |
 | VPC / subnets / SGs | No | CloudFormation-managed | - |
-| EC2 / ECS / ALB / Lambda | No | CloudFormation-managed | - |
+| EC2 ASG / NLB / ECS / ALB / Lambda | No | CloudFormation-managed | - |
 | Cognito User Pool | No | CloudFormation-managed | - |
 | SNS topic | No | CloudFormation-managed | - |

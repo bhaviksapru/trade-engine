@@ -22,11 +22,15 @@ NinjaTrader (free tier, signal detection only)
 trade-engine/
 ├── README.md
 ├── SETUP.md                          ← full installation guide
+├── TEARDOWN.md                       ← full cleanup guide
 ├── .gitignore
 ├── architecture/                     ← architectural diagrams and docs
+│   ├── aws-reference-architecture.html
+│   ├── integration-architecture.html
+│   ├── operational-view.html
+│   ├── security-architecture.html
+│   ├── sequence-diagram.html
 │   ├── business-architecture.md
-│   ├── infrastructure-architecture.html
-│   ├── application-architecture.html
 │   ├── data-architecture.md
 │   └── cost-analysis.md
 ├── dashboard-ui/                     ← S3 static site
@@ -78,7 +82,7 @@ trade-engine/
         ├── storage.yaml              ← DynamoDB, SNS, SQS, EventBridge, S3
         ├── secrets.yaml              ← Secrets Manager (IB creds, API key, Google OAuth)
         ├── cognito.yaml              ← Cognito user pool + Google federation
-        ├── compute.yaml              ← EC2 (CP Gateway), ECR, ECS Fargate, ALB
+        ├── compute.yaml              ← EC2 ASG+NLB (CP Gateway), ECR, ECS Fargate, ALB
         └── frontend.yaml             ← CloudFront distribution
 ```
 
@@ -159,7 +163,7 @@ CognitoHostedUi           https://trade-engine-XXXX.auth.us-east-2.amazoncognito
 CognitoCallbackUrl        https://trade-engine-XXXX.auth.us-east-2.amazoncognito.com/oauth2/idpresponse
 CognitoClientId           XXXX
 EcrRepositoryUrl          XXXX.dkr.ecr.us-east-2.amazonaws.com/trade-engine-dashboard-trade-engine
-Ec2InstanceId             i-XXXX
+CpGatewayAsgName          trade-engine-cp-gateway-trade-engine
 ```
 
 ---
@@ -169,23 +173,24 @@ Ec2InstanceId             i-XXXX
 | Service | Monthly |
 |---|---|
 | EC2 t3.small on-demand (157.5hrs/month) | $3.28 |
-| ECS Fargate 0.25vCPU/0.5GB (157.5hrs) | $1.94 |
+| ECS Fargate 0.25vCPU/0.5GB (157.5hrs) | $0.59 |
+| Internal NLB (CP Gateway, always-on) | $5.76 |
 | Step Functions Express | $0.80 |
 | Step Functions Standard | $0.00 (free tier) |
-| ALB | $6.26 |
-| API Gateway HTTP API | $0.02 |
+| ALB (always-on) | $6.26 |
+| API Gateway HTTP API | $0.00 (free tier) |
 | All Lambdas | $0.00 (free tier) |
 | DynamoDB | $0.04 |
 | EventBridge | $0.00 (free tier) |
 | Cognito User Pool | $0.00 (free tier — 1 MAU vs 50,000 free) |
 | CloudWatch Logs | $1.06 |
+| CloudWatch Alarms | $1.20 |
 | Secrets Manager | $1.60 |
 | S3 + CloudFront | $0.02 |
-| SNS | $0.00 |
-| NAT Gateway | $7.14 |
-| **Total** | **~$30/month (3-AZ HA)** |
+| NAT Gateway | $21.31 |
+| **Total** | **~$41.92/month (3-AZ HA)** |
 
-**vs NinjaTrader execution license: ~$100/month → saving ~$64/month**
+**vs NinjaTrader execution license: ~$100/month → saving ~$58/month**
 
 ---
 
@@ -208,7 +213,7 @@ aws secretsmanager update-secret \
 # Then update OrchestratorClient.cs and recompile in NinjaTrader
 ```
 
-### Destroy everything. Refer Teaddown.MD as well
+### Destroy everything. Refer TEARDOWN.md as well
 ```bash
 BUCKET=$(aws cloudformation describe-stacks --stack-name trade-engine \
   --query "Stacks[0].Outputs[?OutputKey=='S3BucketName'].OutputValue" --output text)
