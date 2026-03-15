@@ -1,6 +1,7 @@
 # trade-engine
 
 > **Why this exists**: NinjaTrader charges ~$100/month for live trade execution. This project eliminates that fee entirely by routing signals from a free NinjaTrader instance through a self-hosted cloud execution layer connecting directly to Interactive Brokers - your broker, your infrastructure, your cost, while still benefiting from the rich userinterface, algo strategy development and backtesting capabilities of NinjaTrader.
+> This is not ninjatrader specific, can be used with any paid platform of your choice if you can forward your trade signals from their platform to the orchestrator.
 
 ---
 
