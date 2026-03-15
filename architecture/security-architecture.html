@@ -24,10 +24,8 @@
   h1{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--amber);letter-spacing:.22em;text-transform:uppercase;margin-bottom:4px}
   .sub{font-family:var(--mono);font-size:9px;color:var(--text);letter-spacing:.1em;margin-bottom:36px}
 
-  /* ── GRID ── */
   .page{display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:auto auto auto;gap:20px}
 
-  /* ── ZONES ── */
   .zone{border:1px solid var(--border2);background:var(--s1);padding:16px}
   .zone-title{font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:.2em;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
   .zone-title::before{content:'';display:inline-block;width:2px;height:14px;background:currentColor;flex-shrink:0}
@@ -38,36 +36,26 @@
   .zone.purple .zone-title{color:var(--purple);border-color:var(--purple-dim)}
   .zone.orange .zone-title{color:var(--orange);border-color:var(--orange-dim)}
 
-  /* span */
   .span2{grid-column:span 2}
   .span3{grid-column:span 3}
 
-  /* ── ITEMS ── */
   .item{background:var(--s2);border:1px solid var(--border);padding:10px 12px;margin-bottom:8px}
   .item:last-child{margin-bottom:0}
   .item-title{font-family:var(--mono);font-size:10px;color:var(--white);margin-bottom:4px;display:flex;align-items:center;justify-content:space-between}
   .item-body{font-size:11px;color:var(--text2);line-height:1.6}
   .item-body code{font-family:var(--mono);font-size:9px;background:var(--s3);padding:0 3px;color:var(--text2)}
 
-  /* ── BADGES ── */
   .badge{font-family:var(--mono);font-size:8px;padding:1px 6px;letter-spacing:.08em;text-transform:uppercase;flex-shrink:0}
-  .b-pass{background:rgba(45,212,160,.12);color:var(--green)}
-  .b-block{background:rgba(240,80,80,.12);color:var(--red)}
   .b-enc{background:rgba(74,158,255,.12);color:var(--blue)}
   .b-iam{background:rgba(240,165,0,.12);color:var(--amber)}
-  .b-tls{background:rgba(157,122,245,.12);color:var(--purple)}
 
-  /* ── FLOW TABLE ── */
   .flow-table{width:100%;border-collapse:collapse}
   .flow-table th{font-family:var(--mono);font-size:8px;font-weight:400;color:var(--text);text-transform:uppercase;letter-spacing:.1em;padding:4px 8px;border-bottom:1px solid var(--border);text-align:left}
   .flow-table td{font-size:10px;color:var(--text2);padding:5px 8px;border-bottom:1px solid var(--border);vertical-align:top;font-family:var(--mono)}
   .flow-table tr:last-child td{border-bottom:none}
-  .flow-table tr:hover td{background:var(--s2)}
   td.ok{color:var(--green)}
   td.warn{color:var(--amber)}
-  td.block{color:var(--red)}
 
-  /* ── THREAT MODEL TABLE ── */
   .threat-row{display:grid;grid-template-columns:160px 1fr 1fr;gap:0;border-bottom:1px solid var(--border)}
   .threat-row:last-child{border-bottom:none}
   .threat-row > div{padding:6px 10px;font-size:10px;line-height:1.5}
@@ -76,7 +64,6 @@
   .tcol-threat{color:var(--red)}
   .tcol-control{color:var(--green)}
 
-  /* ── IAM MATRIX ── */
   .iam-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border)}
   .iam-cell{background:var(--s2);padding:5px 7px;font-family:var(--mono);font-size:8px;text-align:center}
   .iam-cell.head{background:var(--s3);color:var(--text);font-size:8px}
@@ -85,7 +72,6 @@
   .iam-cell.cond{color:var(--amber)}
   .iam-cell.row-head{text-align:left;color:var(--text2)}
 
-  /* ── AUTH FLOW ── */
   .auth-flow{display:flex;flex-direction:column;gap:0}
   .auth-step{display:flex;align-items:flex-start;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)}
   .auth-step:last-child{border-bottom:none}
@@ -95,7 +81,6 @@
   .auth-body .pass{color:var(--green)}
   .auth-body .fail{color:var(--red)}
 
-  /* ── NETWORK ZONE DIAGRAM ── */
   .net-zone{border:1px dashed var(--border2);padding:10px 12px;margin-bottom:8px;position:relative}
   .net-zone-label{position:absolute;top:-9px;left:10px;background:var(--bg);padding:0 6px;font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase}
   .net-item{display:flex;align-items:center;justify-content:space-between;padding:3px 0;font-family:var(--mono);font-size:9px}
@@ -106,15 +91,12 @@
   .sg-rule{font-family:var(--mono);font-size:8px;line-height:1.8}
   .sg-rule .ing{color:var(--blue)}
   .sg-rule .eg{color:var(--green)}
-  .sg-rule .src{color:var(--text2)}
 
-  /* ── SECRET INVENTORY ── */
   .secret-row{display:flex;align-items:baseline;gap:10px;padding:5px 0;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:9px}
   .secret-row:last-child{border-bottom:none}
   .secret-name{color:var(--amber);min-width:280px}
   .secret-access{color:var(--text)}
 
-  /* ── LEGEND ── */
   .legend{display:flex;gap:20px;flex-wrap:wrap;margin-top:24px;padding-top:16px;border-top:1px solid var(--border)}
   .li{display:flex;align-items:center;gap:7px;font-size:10px;color:var(--text)}
   .ld{width:10px;height:10px}
@@ -127,45 +109,33 @@
 
 <div class="page">
 
-  <!-- ══════════════════════════════════
-       1. AUTHENTICATION FLOWS
-  ═══════════════════════════════════ -->
   <div class="zone blue span2">
     <div class="zone-title">Authentication Flows</div>
-
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-
-      <!-- NinjaTrader → API Gateway -->
       <div>
         <div style="font-family:var(--mono);font-size:8px;color:var(--text);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px">NinjaTrader → Signal Endpoint</div>
         <div class="auth-flow">
-          <div class="auth-step"><div class="auth-num">1</div><div class="auth-body"><strong>TLS 1.3</strong> — API Gateway enforces HTTPS, AWS-managed ACM cert. No plaintext traffic possible.</div></div>
-          <div class="auth-step"><div class="auth-num">2</div><div class="auth-body"><strong>API Authorizer λ</strong> checks <code>X-API-Key</code> header against secret stored in Secrets Manager. Key never in code.</div></div>
-          <div class="auth-step"><div class="auth-num">3</div><div class="auth-body"><strong>IP Allowlist</strong> — Authorizer λ validates <code>sourceIp</code> from <code>requestContext.http.sourceIp</code> against <code>ALLOWED_IP</code> env var (NinjaTrader machine). <span class="fail">Rejects any other IP.</span></div></div>
-          <div class="auth-step"><div class="auth-num">4</div><div class="auth-body"><span class="pass">Both checks must pass.</span> Single failure → 403, signal dropped, no execution started.</div></div>
+          <div class="auth-step"><div class="auth-num">1</div><div class="auth-body"><strong>TLS 1.3</strong> — API Gateway enforces HTTPS, AWS-managed ACM cert.</div></div>
+          <div class="auth-step"><div class="auth-num">2</div><div class="auth-body"><strong>API Authorizer λ</strong> checks <code>X-API-Key</code> header against Secrets Manager. Key never in code.</div></div>
+          <div class="auth-step"><div class="auth-num">3</div><div class="auth-body"><strong>IP Allowlist</strong> — validates <code>sourceIp</code> against <code>ALLOWED_IP</code> env var. <span class="fail">Rejects any other IP.</span></div></div>
+          <div class="auth-step"><div class="auth-num">4</div><div class="auth-body"><span class="pass">Both checks must pass.</span> Single failure → 403, signal dropped.</div></div>
         </div>
       </div>
-
-      <!-- Dashboard → Cognito / FastAPI -->
       <div>
         <div style="font-family:var(--mono);font-size:8px;color:var(--text);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px">Browser → Dashboard</div>
         <div class="auth-flow">
           <div class="auth-step"><div class="auth-num">1</div><div class="auth-body"><strong>Google OAuth 2.0</strong> via Cognito federated identity. User redirected to Google → consent → Cognito receives ID token.</div></div>
-          <div class="auth-step"><div class="auth-num">2</div><div class="auth-body"><strong>Cognito Pre-Token Trigger</strong> λ checks email claim against single <code>ALLOWED_GOOGLE_EMAIL</code>. Any other Google account → token denied.</div></div>
-          <div class="auth-step"><div class="auth-num">3</div><div class="auth-body"><strong>Cognito issues JWT</strong> (RS256, signed with Cognito's private key). Token contains <code>email</code> + <code>exp</code>.</div></div>
-          <div class="auth-step"><div class="auth-num">4</div><div class="auth-body"><strong>FastAPI verifies JWT</strong> on every request using <code>PyJWKClient</code> with Cognito's public JWKS endpoint. Checks: signature, expiry, audience, email claim.</div></div>
-          <div class="auth-step"><div class="auth-num">5</div><div class="auth-body"><strong>WebSocket path</strong> passes JWT as query param <code>?token=…</code> (browser WS API cannot send headers). Token verified before <code>websocket.accept()</code> — connection closed with code 4001/4003 on failure.</div></div>
+          <div class="auth-step"><div class="auth-num">2</div><div class="auth-body"><strong>Cognito Pre-Token Trigger λ</strong> checks email claim against single <code>ALLOWED_GOOGLE_EMAIL</code>. Any other account → token denied.</div></div>
+          <div class="auth-step"><div class="auth-num">3</div><div class="auth-body"><strong>Cognito issues JWT</strong> (RS256). Token contains <code>email</code> + <code>exp</code>.</div></div>
+          <div class="auth-step"><div class="auth-num">4</div><div class="auth-body"><strong>FastAPI verifies JWT</strong> on every request using <code>PyJWKClient</code> with Cognito JWKS endpoint.</div></div>
+          <div class="auth-step"><div class="auth-num">5</div><div class="auth-body"><strong>WebSocket</strong> passes JWT as query param <code>?token=…</code> (browser WS API cannot send headers). Verified before <code>websocket.accept()</code>.</div></div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ══════════════════════════════════
-       2. IAM LEAST-PRIVILEGE MATRIX
-  ═══════════════════════════════════ -->
   <div class="zone amber">
     <div class="zone-title">IAM Least-Privilege Matrix</div>
-
     <div class="iam-grid">
       <div class="iam-cell head row-head">Role</div>
       <div class="iam-cell head">DynamoDB</div>
@@ -189,31 +159,31 @@
       <div class="iam-cell allow">trades RW</div>
       <div class="iam-cell deny">—</div>
       <div class="iam-cell deny">—</div>
-      <div class="iam-cell allow">VPC→CPG</div>
+      <div class="iam-cell allow">VPC→NLB→CPG</div>
 
       <div class="iam-cell row-head">wait_for_fill λ</div>
       <div class="iam-cell allow">trades RW</div>
       <div class="iam-cell deny">—</div>
       <div class="iam-cell deny">—</div>
-      <div class="iam-cell allow">VPC→CPG</div>
+      <div class="iam-cell allow">VPC→NLB→CPG</div>
 
       <div class="iam-cell row-head">set_stop λ</div>
       <div class="iam-cell allow">trades RW<br/>config R</div>
       <div class="iam-cell deny">—</div>
       <div class="iam-cell deny">—</div>
-      <div class="iam-cell allow">VPC→CPG</div>
+      <div class="iam-cell allow">VPC→NLB→CPG</div>
 
       <div class="iam-cell row-head">check_price λ</div>
       <div class="iam-cell allow">trades RW</div>
       <div class="iam-cell deny">—</div>
       <div class="iam-cell deny">—</div>
-      <div class="iam-cell allow">EventBridge<br/>VPC→CPG</div>
+      <div class="iam-cell allow">EventBridge<br/>VPC→NLB→CPG</div>
 
       <div class="iam-cell row-head">close_position λ</div>
       <div class="iam-cell allow">trades RW<br/>positions RW</div>
       <div class="iam-cell deny">—</div>
       <div class="iam-cell deny">—</div>
-      <div class="iam-cell allow">VPC→CPG</div>
+      <div class="iam-cell allow">VPC→NLB→CPG</div>
 
       <div class="iam-cell row-head">log_trade λ</div>
       <div class="iam-cell allow">trades RW<br/>config RW</div>
@@ -225,13 +195,13 @@
       <div class="iam-cell allow">trades RW<br/>config RW</div>
       <div class="iam-cell allow">StopExec</div>
       <div class="iam-cell deny">—</div>
-      <div class="iam-cell allow">SNS · CPG</div>
+      <div class="iam-cell allow">SNS · NLB→CPG</div>
 
       <div class="iam-cell row-head">dead_man λ</div>
       <div class="iam-cell allow">trades RW<br/>config RW</div>
       <div class="iam-cell allow">StopExec</div>
       <div class="iam-cell deny">—</div>
-      <div class="iam-cell allow">SNS · CPG</div>
+      <div class="iam-cell allow">SNS · NLB→CPG</div>
 
       <div class="iam-cell row-head">api_authorizer λ</div>
       <div class="iam-cell deny">—</div>
@@ -239,26 +209,23 @@
       <div class="iam-cell allow">GetSecretValue<br/>(api-key only)</div>
       <div class="iam-cell deny">—</div>
 
-      <div class="iam-cell row-head">ECS task (dashboard-api)</div>
+      <div class="iam-cell row-head">ECS task</div>
       <div class="iam-cell allow">trades RW<br/>config RW<br/>positions R</div>
       <div class="iam-cell allow">StopExec</div>
       <div class="iam-cell deny">—</div>
       <div class="iam-cell allow">SNS · SQS<br/>EventBridge</div>
 
-      <div class="iam-cell row-head">EC2 (CP Gateway)</div>
+      <div class="iam-cell row-head">EC2 ASG (CP Gateway)</div>
       <div class="iam-cell deny">—</div>
       <div class="iam-cell deny">—</div>
       <div class="iam-cell allow cond">GetSecretValue<br/>(IB creds only)</div>
       <div class="iam-cell allow">SSM Session<br/>(no SSH)</div>
     </div>
     <div style="margin-top:8px;font-family:var(--mono);font-size:8px;color:var(--text)">
-      R=read-only · RW=read+write · —=no access granted · All Lambda IAM roles are single-purpose, no admin/wildcard permissions
+      R=read-only · RW=read+write · —=no access · All Lambda roles are single-purpose, no admin/wildcard permissions
     </div>
   </div>
 
-  <!-- ══════════════════════════════════
-       3. NETWORK SECURITY
-  ═══════════════════════════════════ -->
   <div class="zone green span2">
     <div class="zone-title">Network Security — VPC Isolation</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
@@ -274,13 +241,14 @@
           <div class="net-zone-label" style="color:var(--amber)">AWS Edge / Managed</div>
           <div class="net-item"><span class="name">API Gateway (HTTP API)</span><span class="port">:443</span><span class="rule">IP+key → Signal λ only</span></div>
           <div class="net-item"><span class="name">CloudFront CDN</span><span class="port">:443</span><span class="rule">→ S3 (static) + ALB :8080</span></div>
-          <div class="net-item"><span class="name">ALB (market hours only)</span><span class="port">:8080</span><span class="rule">→ Fargate :8000 (JWT required)</span></div>
+          <div class="net-item"><span class="name">ALB (always-on, Fargate scales to 0 overnight)</span><span class="port">:8080</span><span class="rule">→ Fargate :8000 (JWT required)</span></div>
         </div>
 
         <div class="net-zone" style="border-color:var(--blue-dim)">
           <div class="net-zone-label" style="color:var(--blue)">VPC Private Subnets (3 AZs)</div>
           <div class="net-item"><span class="name">Lambda functions</span><span class="port">egress only</span><span class="rule deny">no inbound</span></div>
-          <div class="net-item"><span class="name">EC2 (CP Gateway)</span><span class="port">:5000</span><span class="rule">sg-lambda → sg-cpgw only</span></div>
+          <div class="net-item"><span class="name">Internal NLB (CP Gateway)</span><span class="port">:5000</span><span class="rule">sg-nlb-cpgw accepts Lambda+Fargate</span></div>
+          <div class="net-item"><span class="name">EC2 ASG (CP Gateway)</span><span class="port">:5000</span><span class="rule">sg-nlb-cpgw → sg-cpgw only</span></div>
           <div class="net-item"><span class="name">Fargate (dashboard-api)</span><span class="port">:8000</span><span class="rule">sg-alb → sg-fargate only</span></div>
           <div class="net-item"><span class="name">NAT Gateway</span><span class="port">→ :443</span><span class="rule">IB servers outbound only</span></div>
         </div>
@@ -290,7 +258,7 @@
           <div style="font-family:var(--mono);font-size:8.5px;color:var(--text2);line-height:1.9">
             dynamodb · states · secretsmanager<br/>
             ecr.api · ecr.dkr · logs · sqs<br/>
-            <span style="color:var(--text)">→ Lambda/Fargate traffic stays entirely within AWS backbone</span>
+            <span style="color:var(--text)">→ Lambda/Fargate traffic stays within AWS backbone</span>
           </div>
         </div>
       </div>
@@ -299,21 +267,30 @@
         <div style="font-family:var(--mono);font-size:8px;color:var(--text);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px">Security Group Rules</div>
 
         <div class="item" style="margin-bottom:8px">
-          <div class="item-title"><span>sg-lambda</span><span class="badge b-iam">Lambda SG</span></div>
+          <div class="item-title"><span>sg-lambda-workers</span><span class="badge b-iam">Lambda SG</span></div>
           <div class="sg-rule">
             <div class="ing">INGRESS: none (Lambda has no listening ports)</div>
-            <div class="eg">EGRESS:  → sg-cpgw  :5000  (CP Gateway only)</div>
+            <div class="eg">EGRESS:  → sg-nlb-cpgw  :5000  (internal NLB for CP Gateway)</div>
             <div class="eg">EGRESS:  → VPC endpoints  :443  (AWS APIs)</div>
             <div class="eg">EGRESS:  → 0.0.0.0/0  :443  via NAT (IB + Cognito JWKS)</div>
           </div>
         </div>
 
         <div class="item" style="margin-bottom:8px">
-          <div class="item-title"><span>sg-cpgw</span><span class="badge b-iam">EC2 CP Gateway SG</span></div>
+          <div class="item-title"><span>sg-nlb-cpgw</span><span class="badge b-iam">Internal NLB SG</span></div>
           <div class="sg-rule">
-            <div class="ing">INGRESS: sg-lambda       :5000  (Lambda functions only)</div>
-            <div class="ing">INGRESS: sg-fargate      :5000  (dashboard-api only)</div>
+            <div class="ing">INGRESS: sg-lambda-workers  :5000</div>
+            <div class="ing">INGRESS: sg-fargate         :5000</div>
+            <div class="eg">EGRESS:  → sg-cpgw          :5000  (EC2 ASG instances)</div>
             <div style="color:var(--red)">INGRESS: 0.0.0.0/0  DENY  (no public access)</div>
+          </div>
+        </div>
+
+        <div class="item" style="margin-bottom:8px">
+          <div class="item-title"><span>sg-cpgw</span><span class="badge b-iam">EC2 ASG CP Gateway SG</span></div>
+          <div class="sg-rule">
+            <div class="ing">INGRESS: sg-nlb-cpgw     :5000  (internal NLB only)</div>
+            <div style="color:var(--red)">INGRESS: 0.0.0.0/0  DENY  (no direct Lambda/Fargate/internet access)</div>
             <div class="eg">EGRESS:  0.0.0.0/0  :443  (IB servers via NAT)</div>
           </div>
         </div>
@@ -321,17 +298,17 @@
         <div class="item" style="margin-bottom:8px">
           <div class="item-title"><span>sg-fargate</span><span class="badge b-iam">ECS Fargate SG</span></div>
           <div class="sg-rule">
-            <div class="ing">INGRESS: sg-alb          :8000  (ALB only)</div>
+            <div class="ing">INGRESS: sg-alb              :8000  (ALB only)</div>
             <div style="color:var(--red)">INGRESS: 0.0.0.0/0  DENY</div>
-            <div class="eg">EGRESS:  → sg-cpgw       :5000  (CP Gateway)</div>
-            <div class="eg">EGRESS:  → VPC endpoints  :443  (DDB, SNS, SQS)</div>
+            <div class="eg">EGRESS:  → sg-nlb-cpgw       :5000  (internal NLB)</div>
+            <div class="eg">EGRESS:  → VPC endpoints      :443  (DDB, SNS, SQS)</div>
           </div>
         </div>
 
         <div class="item">
           <div class="item-title"><span>sg-alb</span><span class="badge b-iam">ALB SG</span></div>
           <div class="sg-rule">
-            <div class="ing">INGRESS: 0.0.0.0/0  :8080  (CloudFront origins only — restrict to CloudFront managed prefix list for hardening)</div>
+            <div class="ing">INGRESS: 0.0.0.0/0  :8080  (restrict to CloudFront managed prefix list for hardening)</div>
             <div class="eg">EGRESS:  → sg-fargate     :8000</div>
           </div>
         </div>
@@ -339,15 +316,12 @@
     </div>
   </div>
 
-  <!-- ══════════════════════════════════
-       4. SECRETS INVENTORY
-  ═══════════════════════════════════ -->
   <div class="zone purple">
     <div class="zone-title">Secrets &amp; Credential Inventory</div>
 
     <div class="item">
       <div class="item-title"><span>Secrets Manager secrets</span><span class="badge b-enc">AES-256 at rest</span></div>
-      <div class="secret-row"><span class="secret-name">trade-engine/ib-credentials</span><span class="secret-access">EC2 UserData only — fetched once at boot via instance role, never passed anywhere</span></div>
+      <div class="secret-row"><span class="secret-name">trade-engine/ib-credentials</span><span class="secret-access">EC2 ASG UserData only — fetched once at instance boot via instance role, never passed anywhere</span></div>
       <div class="secret-row"><span class="secret-name">trade-engine/api-key-{stackname}</span><span class="secret-access">api_authorizer λ only — in-memory cached per container, never logged</span></div>
       <div class="secret-row"><span class="secret-name">trade-engine/cognito-{stackname}</span><span class="secret-access">CloudFormation only — used during stack provisioning</span></div>
     </div>
@@ -356,7 +330,7 @@
       <div class="item-title"><span>Environment variables (Lambda)</span><span class="badge b-iam">IAM-scoped</span></div>
       <div class="item-body">
         No credentials in env vars. Only table names, ARNs, and non-sensitive config.<br/>
-        <code>CP_GATEWAY_URL</code> is a private VPC IP — not a secret but not publicly resolvable either.
+        <code>CP_GATEWAY_URL</code> is the internal NLB DNS name — stable across ASG instance replacements, not publicly resolvable.
       </div>
     </div>
 
@@ -364,80 +338,36 @@
       <div class="item-title"><span>NinjaTrader desktop</span><span class="badge b-enc">Windows env var</span></div>
       <div class="item-body">
         <code>TRADE_ENGINE_API_KEY</code> set as Windows User environment variable.<br/>
-        Never hardcoded in <code>OrchestratorClient.cs</code>. Throws at startup if unset.<br/>
-        API key is rotatable — update Secrets Manager + Windows env var + redeploy authorizer.
+        Never hardcoded in <code>OrchestratorClient.cs</code>. Throws at startup if unset.
       </div>
     </div>
 
     <div class="item" style="margin-top:8px">
       <div class="item-title"><span>Rotation &amp; Revocation</span></div>
       <div class="item-body">
-        IB credentials: rotate by updating Secrets Manager secret → EC2 re-bootstrap or restart container.<br/>
-        API key: rotate in Secrets Manager → authorizer λ in-memory cache invalidates on cold start.<br/>
-        Cognito JWT: 1-hour TTL by default. Revoke by deleting user in Cognito User Pool.
+        IB credentials: rotate by updating Secrets Manager secret → terminate ASG instance so replacement picks up new credentials at boot.<br/>
+        API key: rotate in Secrets Manager → authorizer λ cache invalidates on cold start.<br/>
+        Cognito JWT: 1-hour TTL. Revoke by deleting user in Cognito User Pool.
       </div>
     </div>
   </div>
 
-  <!-- ══════════════════════════════════
-       5. DATA SECURITY
-  ═══════════════════════════════════ -->
   <div class="zone orange">
     <div class="zone-title">Data Security</div>
-
     <table class="flow-table">
       <tr><th>Layer</th><th>At Rest</th><th>In Transit</th><th>Access</th></tr>
-      <tr>
-        <td>DynamoDB (all tables)</td>
-        <td class="ok">AES-256, AWS-managed key</td>
-        <td class="ok">TLS via VPC endpoint</td>
-        <td class="ok">IAM per-Lambda role</td>
-      </tr>
-      <tr>
-        <td>Trade history</td>
-        <td class="ok">PITR enabled (35-day point-in-time restore)</td>
-        <td class="ok">TLS</td>
-        <td class="ok">DeletionPolicy: Retain (never auto-deleted)</td>
-      </tr>
-      <tr>
-        <td>Secrets Manager</td>
-        <td class="ok">AES-256, KMS</td>
-        <td class="ok">TLS via VPC endpoint</td>
-        <td class="ok">Resource policy per secret — single IAM role per secret</td>
-      </tr>
-      <tr>
-        <td>CloudWatch Logs</td>
-        <td class="warn">Default KMS (consider CMK)</td>
-        <td class="ok">TLS via VPC endpoint</td>
-        <td class="warn">30-day retention. Trade P&L visible in logs — consider log-level guard</td>
-      </tr>
-      <tr>
-        <td>S3 (dashboard static)</td>
-        <td class="ok">AES-256, public access blocked</td>
-        <td class="ok">CloudFront enforces HTTPS</td>
-        <td class="ok">Private, CloudFront OAC only</td>
-      </tr>
-      <tr>
-        <td>SQS (events queue)</td>
-        <td class="ok">Server-side encryption</td>
-        <td class="ok">TLS via VPC endpoint</td>
-        <td class="ok">IAM + resource policy (EventBridge principal only for send)</td>
-      </tr>
-      <tr>
-        <td>Lambda env vars</td>
-        <td class="ok">Encrypted at rest by Lambda service</td>
-        <td class="ok">N/A (in-memory)</td>
-        <td class="warn">No CMK — table names/ARNs visible to anyone with GetFunctionConfiguration. Consider KMS CMK.</td>
-      </tr>
+      <tr><td>DynamoDB (all tables)</td><td class="ok">AES-256, AWS-managed key</td><td class="ok">TLS via VPC endpoint</td><td class="ok">IAM per-Lambda role</td></tr>
+      <tr><td>Trade history</td><td class="ok">PITR enabled (35-day restore)</td><td class="ok">TLS</td><td class="ok">DeletionPolicy: Retain</td></tr>
+      <tr><td>Secrets Manager</td><td class="ok">AES-256, KMS</td><td class="ok">TLS via VPC endpoint</td><td class="ok">Resource policy per secret</td></tr>
+      <tr><td>CloudWatch Logs</td><td class="warn">Default KMS (consider CMK)</td><td class="ok">TLS via VPC endpoint</td><td class="warn">30-day retention. Trade P&L visible in logs.</td></tr>
+      <tr><td>S3 (dashboard static)</td><td class="ok">AES-256, public access blocked</td><td class="ok">CloudFront enforces HTTPS</td><td class="ok">Private, CloudFront OAC only</td></tr>
+      <tr><td>SQS (events queue)</td><td class="ok">Server-side encryption</td><td class="ok">TLS via VPC endpoint</td><td class="ok">IAM + resource policy</td></tr>
+      <tr><td>Lambda env vars</td><td class="ok">Encrypted at rest by Lambda service</td><td class="ok">N/A (in-memory)</td><td class="warn">No CMK — ARNs visible to anyone with GetFunctionConfiguration.</td></tr>
     </table>
   </div>
 
-  <!-- ══════════════════════════════════
-       6. THREAT MODEL (STRIDE)
-  ═══════════════════════════════════ -->
   <div class="zone red span3">
     <div class="zone-title">Threat Model — STRIDE</div>
-
     <div class="threat-head">
       <div style="display:grid;grid-template-columns:180px 1fr 1fr;gap:0">
         <div>Threat</div><div>Control</div><div>Residual Risk / Notes</div>
@@ -452,7 +382,7 @@
     <div class="threat-row">
       <div class="tcol-threat"><strong>Spoofing</strong><br/>Impersonate dashboard user</div>
       <div class="tcol-control">Google OAuth + Cognito single-email allowlist + RS256 JWT verified on every request</div>
-      <div>Low — tied to a specific Google account. Revoking Cognito user invalidates all sessions within JWT TTL.</div>
+      <div>Low — tied to a specific Google account. Revoking Cognito user invalidates sessions within JWT TTL.</div>
     </div>
     <div class="threat-row">
       <div class="tcol-threat"><strong>Tampering</strong><br/>Modify trade signals in transit</div>
@@ -466,28 +396,23 @@
     </div>
     <div class="threat-row">
       <div class="tcol-threat"><strong>Info Disclosure</strong><br/>Leak IB credentials</div>
-      <div class="tcol-control">Secrets Manager — EC2 reads once at boot via instance role. Never passed to Lambda. Never logged. No hardcoded creds anywhere.</div>
-      <div>Low-Medium. Residual: compromised EC2 instance could expose in-memory creds. Mitigate: SSM Session Manager for access (no SSH port open).</div>
-    </div>
-    <div class="threat-row">
-      <div class="tcol-threat"><strong>Info Disclosure</strong><br/>Expose trade P&L / positions</div>
-      <div class="tcol-control">Dashboard requires Google auth + Cognito JWT. DynamoDB accessible only via IAM-scoped Lambda roles. No public read endpoints.</div>
-      <div>Low. Residual: CloudWatch logs contain P&L values. Consider log filtering or CloudWatch log data protection.</div>
+      <div class="tcol-control">Secrets Manager — EC2 ASG instance reads once at boot via instance role. Never passed to any Lambda. Never logged. No hardcoded creds anywhere.</div>
+      <div>Low-Medium. Residual: compromised EC2 instance could expose in-memory creds. Mitigate: SSM Session Manager (no SSH port open). ASG replacement rotates the instance.</div>
     </div>
     <div class="threat-row">
       <div class="tcol-threat"><strong>Denial of Service</strong><br/>Signal flood / runaway strategy</div>
-      <div class="tcol-control">IP allowlist (single source). API Gateway throttling. Orchestrator cooldown (5s). Signal λ checks trading_enabled. risk_check position limit. Step Functions concurrency limit.</div>
-      <div>Low-Medium. A compromised NinjaTrader machine or rogue strategy could exhaust the position limit before cooldown kicks in. In-flight count fix (risk_check) addresses the race window.</div>
+      <div class="tcol-control">IP allowlist (single source). API Gateway throttling. Orchestrator cooldown (5s). Signal λ checks trading_enabled. risk_check position limit.</div>
+      <div>Low-Medium. A compromised NinjaTrader machine or rogue strategy could exhaust the position limit before cooldown kicks in.</div>
     </div>
     <div class="threat-row">
       <div class="tcol-threat"><strong>Elevation of Privilege</strong><br/>Lambda escapes its IAM role</div>
       <div class="tcol-control">Per-Lambda IAM roles (least privilege). No wildcard actions. No cross-account access. Lambda VPC — cannot reach internet except via NAT to IB.</div>
-      <div>Very low. No admin permissions anywhere. EC2 instance role is limited to one Secrets Manager secret. SSM access is console-only.</div>
+      <div>Very low. No admin permissions anywhere. EC2 instance role is limited to one Secrets Manager secret.</div>
     </div>
     <div class="threat-row">
       <div class="tcol-threat"><strong>Position Stuck Open</strong><br/>Infrastructure failure mid-trade</div>
-      <div class="tcol-control">Step Functions persists execution state — survives Lambda failures. Dead Man λ detects stale heartbeat (&gt;15min) and emergency-closes. Portfolio Risk λ closes on loss limit breach.</div>
-      <div>Low. The chain of safety nets (SF retry → EmergencyClose state → Dead Man λ) covers most failure scenarios. Residual: simultaneous SF + Dead Man failure requires manual intervention.</div>
+      <div class="tcol-control">Step Functions persists execution state. Dead Man λ detects stale heartbeat (&gt;15min) and emergency-closes. Portfolio Risk λ closes on loss limit breach. ASG auto-heals CP Gateway in ~5min.</div>
+      <div>Low. The chain of safety nets (SF retry → EmergencyClose → Dead Man λ) covers most scenarios. Residual: simultaneous SF + Dead Man failure requires manual intervention.</div>
     </div>
   </div>
 
