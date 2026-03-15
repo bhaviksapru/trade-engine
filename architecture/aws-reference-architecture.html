@@ -278,8 +278,10 @@
     <!-- Loop back arrow -->
     <path d="M 676,440 Q 676,400 510,400 Q 390,400 390,440" class="arr-dashed"/>
 
-    <!-- Lambda workers → EC2 CP Gateway (down then right) -->
-    <path d="M 440,590 L 440,660 L 580,660" class="arr-blue"/>
+    <!-- Lambda workers → Internal NLB → EC2 CP Gateway -->
+    <path d="M 440,590 L 440,660 L 540,660" class="arr-blue"/>
+    <!-- NLB → EC2 -->
+    <path d="M 580,660 L 620,660" class="arr-blue"/>
     <!-- EC2 CP Gateway → IB -->
     <path d="M 700,660 L 800,660" class="arr-solid"/>
 
@@ -600,10 +602,27 @@
           </div>
         </div>
 
-        <!-- sg-cpgateway -->
+        <!-- sg-nlb-cpgw + sg-cpgateway -->
         <div class="group sg-box" style="left:340px; top:24px; width:140px; height:220px;">
-          <div class="group-label">sg-cpgateway</div>
-          <div class="svc" style="left:32px; top:30px;">
+          <div class="group-label">sg-nlb-cpgw + sg-cpgateway</div>
+          <!-- Internal NLB -->
+          <div class="svc" style="left:4px; top:20px;">
+            <div class="icon-wrap cat-network">
+              <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="4" y="4" width="40" height="40" rx="8" fill="#8C4FFF" opacity="0.15"/>
+                <rect x="10" y="22" width="28" height="4" rx="2" fill="#8C4FFF" opacity="0.6"/>
+                <circle cx="14" cy="14" r="4" fill="#8C4FFF" opacity="0.6"/>
+                <circle cx="34" cy="14" r="4" fill="#8C4FFF" opacity="0.6"/>
+                <circle cx="14" cy="34" r="4" fill="#8C4FFF" opacity="0.6"/>
+                <circle cx="34" cy="34" r="4" fill="#8C4FFF" opacity="0.6"/>
+                <path d="M14 18v4M34 18v4M14 26v4M34 26v4" stroke="#8C4FFF" stroke-width="2"/>
+              </svg>
+            </div>
+            <div class="svc-name">Internal NLB</div>
+            <div class="svc-sub">TCP:5000<br/>stable DNS</div>
+          </div>
+          <!-- EC2 ASG -->
+          <div class="svc" style="left:70px; top:20px;">
             <div class="icon-wrap cat-compute">
               <!-- EC2 icon -->
               <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -615,10 +634,10 @@
                 <circle cx="24" cy="21" r="4" fill="#FF9900" opacity="0.8"/>
               </svg>
             </div>
-            <div class="svc-name">EC2 t3.small</div>
-            <div class="svc-sub">IB CP Gateway<br/>Docker</div>
+            <div class="svc-name">EC2 ASG (0→1)</div>
+            <div class="svc-sub">IB CP Gateway<br/>ASG+NLB</div>
           </div>
-          <div style="position:absolute; bottom:14px; left:0; right:0; text-align:center; font-size:8px; color:#5f6b7c;">:5000 (internal)<br/>ghcr.io/gnzsnz/<br/>ib-gateway</div>
+          <div style="position:absolute; bottom:14px; left:0; right:0; text-align:center; font-size:8px; color:#5f6b7c;">NLB→:5000 (internal)<br/>ghcr.io/gnzsnz/<br/>ib-gateway</div>
         </div>
 
         <!-- sg-fargate + ALB -->
@@ -639,7 +658,7 @@
               </svg>
             </div>
             <div class="svc-name">ALB</div>
-            <div class="svc-sub">WebSocket<br/>support</div>
+            <div class="svc-sub">WebSocket<br/>always-on</div>
           </div>
 
           <!-- ECS Fargate -->
@@ -866,8 +885,8 @@
     </div>
   </div>
 
-  <!-- Connection label: VPC HTTP:5000 -->
-  <div class="conn-label" style="left:840px; top:618px;">HTTP :5000<br/>VPC internal</div>
+  <!-- Connection label: NLB:5000 -->
+  <div class="conn-label" style="left:840px; top:618px;">NLB:5000<br/>VPC internal</div>
   <!-- Connection label: HTTPS to IBKR -->
   <div class="conn-label" style="left:1110px; top:618px;">HTTPS :443<br/>via NAT GW</div>
 
@@ -888,7 +907,7 @@
     <div class="legend-item"><div class="legend-box" style="border:1px solid #AAB7B8;"></div> Security Group</div>
     <div style="border-top:1px solid #eee; margin:6px 0 4px;"></div>
     <div style="font-size:8px; color:#5f6b7c; line-height:1.7;">
-      <span style="color:#FF9900;">■</span> Compute (Lambda, EC2, ECS)&nbsp;
+      <span style="color:#FF9900;">■</span> Compute (Lambda, EC2 ASG, ECS)&nbsp;
       <span style="color:#8C4FFF;">■</span> Networking&nbsp;<br/>
       <span style="color:#3F8624;">■</span> Storage / S3&nbsp;
       <span style="color:#2075D5;">■</span> Database&nbsp;<br/>
@@ -902,8 +921,8 @@
 <!-- Page Footer -->
 <div class="page-footer">
   <div>Trade Engine · AWS Reference Architecture · SAM Deployment</div>
-  <div>~$30/month at 20 trades/day (3-AZ HA) · saves ~$70/month vs NinjaTrader execution license</div>
-  <div>All compute market-hours-only (9:00am–4:30pm ET Mon–Fri) · Dead Man Lambda runs 24/7</div>
+  <div>~$42/month at 20 trades/day (3-AZ HA, ALB+NLB always-on) · saves ~$58/month vs NinjaTrader execution license</div>
+  <div>EC2 ASG market-hours-only (9:00am–4:30pm ET Mon–Fri) · ALB/NLB always-on · Dead Man Lambda runs 24/7</div>
 </div>
 
 </body>
