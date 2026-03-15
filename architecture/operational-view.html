@@ -25,7 +25,6 @@
   h1{font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:.22em;text-transform:uppercase;margin-bottom:4px}
   .sub{font-family:var(--mono);font-size:9px;color:var(--text);letter-spacing:.1em;margin-bottom:32px}
 
-  /* ── DAILY SCHEDULE TIMELINE ── */
   .timeline-wrap{position:relative;margin-bottom:32px}
   .timeline-title{font-family:var(--mono);font-size:9px;color:var(--amber);letter-spacing:.2em;text-transform:uppercase;margin-bottom:14px}
   .timeline{display:flex;align-items:flex-start;gap:0;position:relative;padding-bottom:20px}
@@ -37,24 +36,15 @@
   .t-seg-label{font-family:var(--mono);font-size:9px;font-weight:600;text-align:center;margin-bottom:3px;white-space:nowrap}
   .t-seg-sub{font-size:9px;color:var(--text);text-align:center;line-height:1.4;white-space:nowrap}
 
-  /* tick marks on timeline */
-  .t-tick{position:absolute;bottom:-14px;width:1px;height:10px;background:var(--border2)}
-
-  /* ── GRID LAYOUT ── */
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:20px}
 
-  /* ── PANELS ── */
   .panel{background:var(--s1);border:1px solid var(--border2);padding:16px}
   .panel-title{font-family:var(--mono);font-size:9px;color:var(--amber);letter-spacing:.18em;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
   .panel-title::before{content:'';display:inline-block;width:2px;height:14px;background:currentColor}
   .panel-title.green::before{background:var(--green)} .panel-title.green{color:var(--green)}
   .panel-title.red::before{background:var(--red)} .panel-title.red{color:var(--red)}
-  .panel-title.blue::before{background:var(--blue)} .panel-title.blue{color:var(--blue)}
-  .panel-title.purple::before{background:var(--purple)} .panel-title.purple{color:var(--purple)}
-  .panel-title.teal::before{background:var(--teal)} .panel-title.teal{color:var(--teal)}
 
-  /* ── RUNBOOK ITEMS ── */
   .rb-item{border-bottom:1px solid var(--border);padding:8px 0}
   .rb-item:last-child{border-bottom:none}
   .rb-trigger{font-family:var(--mono);font-size:10px;color:var(--white);margin-bottom:3px}
@@ -70,8 +60,7 @@
   .rb-step .bad{color:var(--red);font-family:var(--mono);font-size:9px}
   .rb-step code{font-family:var(--mono);font-size:9px;background:var(--s3);padding:0 3px}
 
-  /* ── FAILURE MODES ── */
-  .fm-row{display:grid;grid-template-columns:180px 1fr 1fr 120px;gap:0;border-bottom:1px solid var(--border);align-items:start}
+  .fm-row{display:grid;grid-template-columns:200px 1fr 1fr 120px;gap:0;border-bottom:1px solid var(--border);align-items:start}
   .fm-row:last-child{border-bottom:none}
   .fm-row > div{padding:7px 8px;font-size:10px;line-height:1.5}
   .fm-head{font-family:var(--mono);font-size:8px;color:var(--text);text-transform:uppercase;letter-spacing:.1em;background:var(--s2);border-bottom:1px solid var(--border2)}
@@ -84,7 +73,6 @@
   .sev-med{color:var(--amber)}
   .sev-high{color:var(--red)}
 
-  /* ── MONITORING TABLE ── */
   .mon-row{display:grid;grid-template-columns:200px 80px 1fr 120px;gap:0;border-bottom:1px solid var(--border)}
   .mon-row:last-child{border-bottom:none}
   .mon-row > div{padding:6px 8px;font-size:10px;font-family:var(--mono);line-height:1.4}
@@ -93,20 +81,11 @@
   .mon-action{color:var(--text);font-family:var(--sans)}
   .mon-notify{color:var(--blue);font-size:9px}
 
-  /* ── KEY METRICS TABLE ── */
   .metric-row{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:10px}
   .metric-row:last-child{border-bottom:none}
   .metric-name{color:var(--text2)}
   .metric-val{color:var(--amber)}
   .metric-note{color:var(--text);font-size:9px}
-
-  /* ── DEPLOYMENT TABLE ── */
-  .deploy-row{display:grid;grid-template-columns:160px 1fr 120px;gap:0;border-bottom:1px solid var(--border)}
-  .deploy-row:last-child{border-bottom:none}
-  .deploy-row > div{padding:6px 8px;font-size:10px;line-height:1.5}
-  .dep-comp{color:var(--text2);font-family:var(--mono);font-size:9px}
-  .dep-how{color:var(--text);font-family:var(--sans)}
-  .dep-cmd{font-family:var(--mono);font-size:8.5px;color:var(--green)}
 </style>
 </head>
 <body>
@@ -114,9 +93,6 @@
 <h1>Operational View</h1>
 <p class="sub">trade-engine · daily schedule · monitoring · failure modes · runbooks · deployment</p>
 
-<!-- ══════════════════════════════════════════════════
-     DAILY MARKET SCHEDULE TIMELINE
-═══════════════════════════════════════════════════ -->
 <div class="timeline-wrap">
   <div class="timeline-title">Daily Market Schedule — Eastern Time (DST-aware)</div>
   <div class="timeline">
@@ -132,7 +108,7 @@
       <div class="t-seg-bar" style="background:var(--blue-dim)"></div>
       <div class="t-seg-label" style="color:var(--blue)">Pre-Market Start</div>
       <div class="t-seg-time">09:00 ET</div>
-      <div class="t-seg-sub">EventBridge: EC2 start<br/>ECS desiredCount=1<br/>ALB Manager: START</div>
+      <div class="t-seg-sub">ASG ScheduledAction: desired=1<br/>ECS desiredCount=1</div>
     </div>
 
     <div class="t-seg" style="width:5%">
@@ -160,7 +136,7 @@
       <div class="t-seg-bar" style="background:var(--red-dim)"></div>
       <div class="t-seg-label" style="color:var(--red)">Shutdown</div>
       <div class="t-seg-time">16:30 ET</div>
-      <div class="t-seg-sub">EventBridge: ECS=0<br/>ALB Manager: STOP<br/>EC2 stop (if scheduled)</div>
+      <div class="t-seg-sub">EventBridge: ECS=0<br/>ASG ScheduledAction: desired=0</div>
     </div>
 
     <div class="t-seg" style="width:28%">
@@ -173,13 +149,10 @@
   </div>
   <div style="margin-top:10px;font-family:var(--mono);font-size:8.5px;color:var(--text);line-height:1.8">
     RTH enforcement: <code>risk_check._is_rth()</code> uses <code>zoneinfo.ZoneInfo("America/New_York")</code> — DST-aware. Signals outside 09:30–16:00 ET are rejected before any order reaches IB.<br/>
-    Cron schedule note: <code>cron(5 14 ? * MON-FRI *)</code> = 09:05 ET standard time. Adjust <code>MarketOpenCron</code> / <code>MarketCloseCron</code> SAM parameters when DST changes.
+    Cron schedule note: Fargate uses CloudWatch Events 6-field format (e.g. <code>cron(0 14 ? * MON-FRI *)</code>). CP Gateway ASG uses Unix 5-field cron (e.g. <code>0 14 * * 1-5</code>) — these are separate parameters (<code>MarketOpenUtc</code> / <code>MarketOpenAsgCron</code>) with incompatible formats. Adjust both when DST changes.
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════
-     MONITORING & ALERTING
-═══════════════════════════════════════════════════ -->
 <div class="grid3">
   <div class="panel" style="grid-column:span 3">
     <div class="panel-title">Monitoring &amp; Alerting Matrix</div>
@@ -192,7 +165,7 @@
     <div class="mon-row"><div class="mon-name">Portfolio Risk λ — daily P&L</div><div class="mon-freq">every 60s</div><div class="mon-action">Stop all SF executions, cancel stops, MKT close all, disable trading.</div><div class="mon-notify">SNS SMS on limit breach</div></div>
     <div class="mon-row"><div class="mon-name">Dead Man λ — heartbeat</div><div class="mon-freq">every 5min (24/7)</div><div class="mon-action">Stop SF, cancel GTC stop, MKT close orphaned positions, disable trading.</div><div class="mon-notify">SNS SMS on trigger</div></div>
     <div class="mon-row"><div class="mon-name">check_price λ — heartbeat update</div><div class="mon-freq">every 5s per open trade</div><div class="mon-action">Writes last_heartbeat to DynamoDB. Dead Man detects if it stops.</div><div class="mon-notify">EventBridge PriceUpdate → WebSocket</div></div>
-    <div class="mon-row"><div class="mon-name">CloudWatch — signal λ errors</div><div class="mon-freq">1 error in 5min</div><div class="mon-action">Alarm fires — NinjaTrader signals may not be reaching SF.</div><div class="mon-notify">CloudWatch Alarm (email/SNS)</div></div>
+    <div class="mon-row"><div class="mon-name">CloudWatch — signal λ errors</div><div class="mon-freq">1 error in 5min</div><div class="mon-action">Alarm fires — NinjaTrader signals may not be reaching SF.</div><div class="mon-notify">CloudWatch Alarm (SNS)</div></div>
     <div class="mon-row"><div class="mon-name">CloudWatch — risk_check errors</div><div class="mon-freq">1 error in 5min</div><div class="mon-action">Pre-trade validation broken — signals silently rejected.</div><div class="mon-notify">CloudWatch Alarm</div></div>
     <div class="mon-row"><div class="mon-name">CloudWatch — close_position errors</div><div class="mon-freq">1 error in 5min</div><div class="mon-action">Positions may not be closing — highest severity alarm.</div><div class="mon-notify">CloudWatch Alarm</div></div>
     <div class="mon-row"><div class="mon-name">CloudWatch — SF executions throttled</div><div class="mon-freq">any throttle</div><div class="mon-action">Signals queuing — check SF concurrency limits.</div><div class="mon-notify">CloudWatch Alarm</div></div>
@@ -201,9 +174,6 @@
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════
-     FAILURE MODES
-═══════════════════════════════════════════════════ -->
 <div class="grid">
   <div class="panel" style="grid-column:span 2">
     <div class="panel-title red">Failure Modes &amp; Recovery</div>
@@ -216,13 +186,13 @@
     <div class="fm-row">
       <div class="fm-component">CP Gateway session expires</div>
       <div class="fm-impact">No orders can be placed or queried. Pending trades stall at wait_for_fill.</div>
-      <div class="fm-recovery">Tickle λ detects auth failure → attempts reauthenticate × 3 → disables trading + SNS alert if all fail. Manual: restart CP Gateway container via SSM.</div>
+      <div class="fm-recovery">Tickle λ detects auth failure → attempts reauthenticate × 3 → disables trading + SNS alert if all fail. Manual: restart CP Gateway container via SSM Session Manager on the ASG instance.</div>
       <div class="fm-severity sev-high">HIGH</div>
     </div>
     <div class="fm-row">
-      <div class="fm-component">CP Gateway container crashes</div>
+      <div class="fm-component">CP Gateway EC2 instance fails / AZ outage</div>
       <div class="fm-impact">All IB API calls fail. Open positions cannot be monitored or closed.</div>
-      <div class="fm-recovery">Docker <code>restart: unless-stopped</code> restarts container automatically. Dead Man λ closes any stale positions after 15min heartbeat gap.</div>
+      <div class="fm-recovery">ASG auto-heals by launching a replacement in another AZ (~5 min). NLB DNS stays constant — no Lambda/Fargate reconfiguration needed. Dead Man λ covers positions during the gap.</div>
       <div class="fm-severity sev-high">HIGH</div>
     </div>
     <div class="fm-row">
@@ -244,12 +214,6 @@
       <div class="fm-severity sev-low">LOW</div>
     </div>
     <div class="fm-row">
-      <div class="fm-component">DynamoDB throttling</div>
-      <div class="fm-impact">Lambda writes/reads fail. Heartbeats miss. risk_check may block on position count.</div>
-      <div class="fm-recovery">On-demand billing mode scales automatically. Lambda retries cover transient throttles. Dead Man λ covers prolonged outage.</div>
-      <div class="fm-severity sev-low">LOW</div>
-    </div>
-    <div class="fm-row">
       <div class="fm-component">Order fill timeout (60s)</div>
       <div class="fm-impact">Entry order not confirmed within 60s — likely rejected at exchange or stale.</div>
       <div class="fm-recovery">WaitForFill state catches States.Timeout → CancelOrder state → IB DELETE order → OrderFailedLog. No position opened.</div>
@@ -264,18 +228,14 @@
     <div class="fm-row">
       <div class="fm-component">AWS region outage</div>
       <div class="fm-impact">All components unavailable. Open positions at IBKR have no monitoring.</div>
-      <div class="fm-recovery">No automatic recovery (single-region). Manual: log into IB web portal and close open positions. Dead Man λ in same region — also affected. Accept residual risk for cost.</div>
+      <div class="fm-recovery">No automatic recovery (single-region). Manual: log into IB web portal and close open positions. Accept residual risk for cost.</div>
       <div class="fm-severity sev-high">HIGH (accepted)</div>
     </div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════
-     RUNBOOKS + DEPLOYMENT
-═══════════════════════════════════════════════════ -->
 <div class="grid">
 
-  <!-- RUNBOOKS -->
   <div class="panel">
     <div class="panel-title red">Operational Runbooks</div>
 
@@ -286,7 +246,7 @@
         <div class="rb-step">Check DynamoDB ConfigTable: <code>pk=trading_enabled</code> — read <code>reason</code> field</div>
         <div class="rb-step">If <code>reason=dead_man_triggered</code>: identify orphaned trade, verify IB position is flat</div>
         <div class="rb-step">If <code>reason=portfolio_risk_limit</code>: review daily P&L, wait for next session</div>
-        <div class="rb-step">Re-enable: Dashboard → Resume Trading  <span class="ok">OR</span>  <code>aws dynamodb put-item … pk=trading_enabled value=true reason=manual_resume</code></div>
+        <div class="rb-step">Re-enable: Dashboard → Resume Trading  <span class="ok">OR</span>  <code>aws dynamodb put-item … pk=trading_enabled value=true</code></div>
       </div>
     </div>
 
@@ -294,7 +254,7 @@
       <div class="rb-trigger">CP Gateway auth failure <span class="badge b-alert">SNS Alert</span></div>
       <div class="rb-steps">
         <div class="rb-step">Check CloudWatch Logs: <code>tickle</code> Lambda — look for reauth failure messages</div>
-        <div class="rb-step">SSM Session Manager → EC2 instance → <code>cd /opt/ibgateway && docker-compose ps</code></div>
+        <div class="rb-step">SSM Session Manager → ASG EC2 instance → <code>cd /opt/ibgateway && docker-compose ps</code></div>
         <div class="rb-step">If container running but session expired: <code>docker-compose restart ibgateway</code></div>
         <div class="rb-step">If container not running: <code>docker-compose up -d</code></div>
         <div class="rb-step">Wait 2 min for IB auth — Tickle λ auto-detects session alive and re-enables trading</div>
@@ -313,28 +273,16 @@
     </div>
 
     <div class="rb-item">
-      <div class="rb-trigger">Signal rejected unexpectedly <span class="badge b-manual">Investigate</span></div>
-      <div class="rb-steps">
-        <div class="rb-step">Check NinjaTrader Output window for rejection reason from OrchestratorClient</div>
-        <div class="rb-step">Check CloudWatch Logs: <code>risk_check</code> Lambda for rejection reason</div>
-        <div class="rb-step">Common causes: outside RTH · daily loss limit · position limit · trading_enabled=false</div>
-        <div class="rb-step">Dashboard → Risk tab shows current daily P&L and open position count</div>
-      </div>
-    </div>
-
-    <div class="rb-item">
       <div class="rb-trigger">Emergency: close all positions immediately <span class="badge b-manual">Manual</span></div>
       <div class="rb-steps">
         <div class="rb-step">Dashboard → Close All Positions (stops SF executions, cancels stops, MKT close all)</div>
         <div class="rb-step"><span class="bad">If dashboard unavailable:</span> IB web portal → Portfolio → close all manually</div>
         <div class="rb-step">Verify all positions flat in IB before leaving terminal</div>
-        <div class="rb-step">Dashboard → Pause Trading to prevent new signals while investigating</div>
       </div>
     </div>
 
   </div>
 
-  <!-- DEPLOYMENT -->
   <div class="panel">
     <div class="panel-title green">Deployment Runbook</div>
 
@@ -354,8 +302,7 @@
       <div class="rb-trigger">Lambda code update <span class="badge b-auto">~2 min</span></div>
       <div class="rb-steps">
         <div class="rb-step"><code>sam build && sam deploy</code> (non-interactive, uses samconfig.toml)</div>
-        <div class="rb-step">Lambdas update in-place — no downtime. In-flight SF executions use previous version until they complete.</div>
-        <div class="rb-step">Verify in CloudWatch Logs that new code is running</div>
+        <div class="rb-step">Lambdas update in-place — no downtime. In-flight SF executions use previous version until complete.</div>
       </div>
     </div>
 
@@ -363,7 +310,7 @@
       <div class="rb-trigger">Dashboard-api Docker update <span class="badge b-manual">~5 min</span></div>
       <div class="rb-steps">
         <div class="rb-step"><code>docker build -t trade-engine-dashboard:latest ./dashboard-api</code></div>
-        <div class="rb-step"><code>docker push {accountId}.dkr.ecr.{region}.amazonaws.com/trade-engine-dashboard-{stack}:latest</code></div>
+        <div class="rb-step"><code>docker push {ecr-url}:latest</code></div>
         <div class="rb-step"><code>aws ecs update-service --force-new-deployment …</code> — ECS rolling update</div>
         <div class="rb-step"><span class="warn">Deploy outside market hours</span> — rolling restart briefly interrupts WebSocket connections</div>
       </div>
@@ -373,8 +320,8 @@
       <div class="rb-trigger">IB credentials rotation <span class="badge b-manual">Out-of-hours</span></div>
       <div class="rb-steps">
         <div class="rb-step">Update Secrets Manager secret: <code>aws secretsmanager update-secret …</code></div>
-        <div class="rb-step">Restart CP Gateway container: <code>docker-compose restart ibgateway</code></div>
-        <div class="rb-step">UserData re-fetches secret on container restart — new credentials picked up automatically</div>
+        <div class="rb-step">Terminate the running ASG instance so it relaunches with fresh UserData: <code>aws autoscaling terminate-instance-in-auto-scaling-group --instance-id &lt;id&gt; --no-should-decrement-desired-capacity</code></div>
+        <div class="rb-step">ASG launches a replacement that fetches new credentials at boot — ~3-5 min for IB Gateway to authenticate</div>
       </div>
     </div>
 
@@ -383,7 +330,7 @@
       <div class="rb-steps">
         <div class="rb-step">Generate new key, update Secrets Manager</div>
         <div class="rb-step">Update Windows env var <code>TRADE_ENGINE_API_KEY</code> → restart NinjaTrader</div>
-        <div class="rb-step">api_authorizer λ picks up new key on next cold start (or force new deployment)</div>
+        <div class="rb-step">api_authorizer λ picks up new key on next cold start</div>
       </div>
     </div>
 
