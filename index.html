@@ -63,7 +63,6 @@
       gap: 1rem;
     }
 
-    /* Left cluster: tabs always first */
     .header-left {
       display: flex;
       align-items: center;
@@ -99,7 +98,6 @@
     }
     .sub-tab-btn:hover:not(.active) { color: var(--text); }
 
-    /* Right cluster: back link + brand */
     .header-right {
       display: flex;
       align-items: center;
@@ -804,30 +802,19 @@
 
     @media (max-width: 900px) {
       .overview-grid { grid-template-columns: 1fr; gap: 2.5rem; }
-
-      /* On medium screens hide the brand to save space — tabs stay visible */
       .header-brand { display: none; }
-
       #site-header { padding: 0 4vw; }
-
       .tab-content { padding-top: var(--h); }
-
       .dash-grid-top { grid-template-columns: 1fr 1fr; }
     }
 
     @media (max-width: 600px) {
       .stat-grid { grid-template-columns: 1fr 1fr; }
       .doc-grid { grid-template-columns: 1fr; }
-
-      /* Shrink tab padding so all 3 fit on narrow screens */
       .sub-tab-btn { padding: 0.48rem 0.8rem; letter-spacing: 0.08em; }
-
-      /* Hide ← Portfolio text on very small, keep arrow */
       .portfolio-back { font-size: 0; }
       .portfolio-back::before { content: '←'; font-size: 0.7rem; }
-
       .dash-grid-top { grid-template-columns: 1fr 1fr; }
-
       .health-key { min-width: 90px; }
     }
   </style>
@@ -836,7 +823,6 @@
 
   <!-- HEADER -->
   <header id="site-header">
-    <!-- Left: tabs -->
     <div class="header-left">
       <nav class="sub-tab-nav">
         <button class="sub-tab-btn active"  onclick="switchTab('overview')">Overview</button>
@@ -844,7 +830,6 @@
         <button class="sub-tab-btn"         onclick="switchTab('arch')">Architecture</button>
       </nav>
     </div>
-    <!-- Right: brand + back -->
     <div class="header-right">
       <div class="header-brand">Trade <span>Engine</span></div>
       <a class="portfolio-back" href="https://bhaviksapru.github.io" target="_top">← Portfolio</a>
@@ -1126,8 +1111,8 @@
       <div class="arch-eyebrow">Technical Documentation</div>
       <h2 class="arch-heading">Architecture Docs</h2>
       <p class="arch-sub">
-        Five documents covering every layer of the system — from business context down to 
-        IAM permissions and DynamoDB access patterns. Each opens full-screen.
+        Six documents covering every layer of the system — from business context down to 
+        IAM permissions, DynamoDB access patterns, and full cost analysis. Each opens full-screen.
       </p>
 
       <div class="doc-grid">
@@ -1167,6 +1152,13 @@
           <div class="doc-open">Open document <span class="doc-open-arrow">→</span></div>
         </a>
 
+        <a class="doc-card" href="architecture/financial-analysis.html" target="_blank">
+          <div class="doc-num">06</div>
+          <div class="doc-title">Financial Analysis</div>
+          <p class="doc-desc">Full service-by-service cost breakdown, NinjaTrader licence comparison, annual saving projection, trade volume scaling table, and three cost reduction options with explicit trade-off analysis.</p>
+          <div class="doc-open">Open document <span class="doc-open-arrow">→</span></div>
+        </a>
+
       </div>
     </div>
   </section>
@@ -1191,21 +1183,17 @@
   // ════════════════════════════════════════════════════════════════
   const DemoEngine = (() => {
 
-    // ── State ──────────────────────────────────────────────────
     let running    = false;
     let tickTimer  = null;
     let tradeTimer = null;
 
-    // Simulated clock: starts at 9:32 ET today
     let simSeconds = 9 * 3600 + 32 * 60;
 
-    // Market prices (realistic MES/MNQ levels)
     let prices = {
       MES: { bid: 5871.25, ask: 5871.50, last: 5871.25 },
       MNQ: { bid: 20948.00, ask: 20948.25, last: 20948.00 },
     };
 
-    // Open positions
     let positions = [
       {
         trade_id:       'te_20250314_MES_001',
@@ -1229,7 +1217,6 @@
       },
     ];
 
-    // Closed trades (seed with some history)
     let closedTrades = [
       { trade_id:'te_20250314_MES_X01', symbol:'MES', side:'BUY',  quantity:1, fill_price:5859.75, close_price:5865.25, pnl_usd: 27.50, exit_reason:'TAKE_PROFIT', status:'CLOSED', created_at:'2025-03-14T09:04:12Z' },
       { trade_id:'te_20250314_MNQ_X02', symbol:'MNQ', side:'SELL', quantity:1, fill_price:20972.00, close_price:20960.50, pnl_usd: 23.00, exit_reason:'TAKE_PROFIT', status:'CLOSED', created_at:'2025-03-14T09:18:44Z' },
@@ -1239,17 +1226,14 @@
       { trade_id:'te_20250312_MES_X06', symbol:'MES', side:'BUY',  quantity:2, fill_price:5822.50, close_price:5831.00, pnl_usd: 85.00, exit_reason:'TAKE_PROFIT', status:'CLOSED', created_at:'2025-03-12T14:08:11Z' },
     ];
 
-    // Realised P&L (from today's closed trades above)
-    let todayPnl    = 27.50 + 23.00 - 18.00;  // 32.50
+    let todayPnl    = 27.50 + 23.00 - 18.00;
     let winCount    = 2;
     let lossCount   = 1;
     let tradeCount  = 3;
     const MAX_LOSS  = 500;
 
-    // Events feed buffer
     let events = [];
 
-    // ── Helpers ──────────────────────────────────────────────
     function simTime() {
       const h = Math.floor(simSeconds / 3600);
       const m = Math.floor((simSeconds % 3600) / 60);
@@ -1260,7 +1244,6 @@
     function rand(min, max) { return Math.random() * (max - min) + min; }
     function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
 
-    // Tick price with mean reversion + momentum
     function tickPrice(sym, momentum) {
       const p   = prices[sym];
       const vol = sym === 'MES' ? 0.50 : 2.00;
@@ -1276,7 +1259,7 @@
 
     function calcUnrealizedPnl(pos) {
       const px = prices[pos.symbol].last;
-      const tickVal = pos.symbol === 'MES' ? 1.25 : 0.50; // per 0.25 tick
+      const tickVal = pos.symbol === 'MES' ? 1.25 : 0.50;
       const ticks = Math.round((px - pos.fill_price) / 0.25);
       const rawPnl = ticks * tickVal * pos.quantity;
       return pos.side === 'BUY' ? rawPnl : -rawPnl;
@@ -1291,8 +1274,6 @@
       card.classList.add('flash');
       setTimeout(() => card.classList.remove('flash'), 600);
     }
-
-    // ── Render ────────────────────────────────────────────────
 
     function renderPositions() {
       const body = el('d-positions-body');
@@ -1341,7 +1322,6 @@
     }
 
     function renderMetrics() {
-      // Unrealised total
       const unrealTot = positions.reduce((s, p) => s + calcUnrealizedPnl(p), 0);
       const totalPnl  = todayPnl + unrealTot;
       const pct       = Math.min(100, Math.abs(Math.min(0, totalPnl)) / MAX_LOSS * 100).toFixed(0);
@@ -1416,18 +1396,15 @@
       div.className = `event-item`;
       div.innerHTML = `<span class="event-time">${simTime()}</span><span class="event-type-${type}">${text}</span>`;
       feed.insertBefore(div, feed.firstChild);
-      // Keep only 20 items
       while (feed.children.length > 20) feed.removeChild(feed.lastChild);
     }
 
-    // ── Tick (every ~800ms) ────────────────────────────────────
     let momentum = { MES: 0, MNQ: 0 };
     let momentumTick = 0;
 
     function tick() {
       simSeconds += 1;
 
-      // Occasionally shift momentum
       momentumTick++;
       if (momentumTick > randInt(8, 20)) {
         momentum.MES = rand(-1, 1);
@@ -1438,7 +1415,6 @@
       tickPrice('MES', momentum.MES);
       tickPrice('MNQ', momentum.MNQ);
 
-      // Update P&L cells if already rendered
       const hasCells = document.getElementById(`d-pnl-${positions[0]?.trade_id}`);
       if (hasCells) {
         updatePositionCells();
@@ -1448,7 +1424,6 @@
 
       renderMetrics();
 
-      // Emit price event every ~3 ticks
       if (simSeconds % 3 === 0 && positions.length) {
         const p = positions[Math.floor(Math.random() * positions.length)];
         const pnl = calcUnrealizedPnl(p);
@@ -1457,7 +1432,6 @@
       }
     }
 
-    // ── Trade simulation (every ~25-55s) ──────────────────────
     const OPEN_EXIT_REASONS = ['TAKE_PROFIT', 'STOP_LOSS', 'MANUAL_CLOSE', 'TIME_EXIT'];
     const SIGNAL_SYMBOLS    = ['MES', 'MNQ'];
     const SIGNAL_SIDES      = ['BUY', 'SELL'];
@@ -1466,7 +1440,6 @@
       const action = Math.random();
 
       if (action < 0.40 && positions.length > 0) {
-        // Close a random open position
         const idx   = randInt(0, positions.length - 1);
         const pos   = positions[idx];
         const reason = OPEN_EXIT_REASONS[randInt(0, OPEN_EXIT_REASONS.length - 1)];
@@ -1495,7 +1468,6 @@
         flashCard('d-card-count');
 
       } else if (action < 0.85 && positions.length < 4) {
-        // Open a new position
         const sym  = SIGNAL_SYMBOLS[randInt(0, 1)];
         const side = SIGNAL_SIDES[randInt(0, 1)];
         const fill = prices[sym].last;
@@ -1524,26 +1496,20 @@
         flashCard('d-card-open');
       }
 
-      // Schedule next event
       tradeTimer = setTimeout(simulateTradeEvent, randInt(18000, 45000));
     }
 
-    // ── Public API ────────────────────────────────────────────
     function ensureRunning() {
       if (running) return;
       running = true;
 
-      // First render
       renderPositions();
       renderMetrics();
       renderTrades();
       addEvent('price', 'WebSocket connection established');
       addEvent('price', 'EventBridge SQS poller active');
 
-      // Start ticking
       tickTimer  = setInterval(tick, 850);
-
-      // First trade event after 12-22s
       tradeTimer = setTimeout(simulateTradeEvent, randInt(12000, 22000));
     }
 
