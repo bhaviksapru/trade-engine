@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="description" content="Trade Engine — AWS-based trade execution layer replacing NinjaTrader's live execution licence.">
+  <title>Trade Engine — Bhavik Sapru</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:         #080909;
+      --dark:       #0d0f0f;
+      --panel:      #111414;
+      --panel2:     #161919;
+      --border:     #212525;
+      --border2:    #2b3030;
+      --amber:      #f5a623;
+      --amber-dim:  #c47d0e;
+      --amber-glow: rgba(245,166,35,0.07);
+      --white:      #ede9e0;
+      --muted:      #5e6464;
+      --text:       #aaa69e;
+      --h:          58px;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+      overflow-x: hidden;
+    }
+
+    /* ── NOISE ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.5;
+    }
+
+    /* ── HEADER ── */
+    #site-header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--h);
+      z-index: 200;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 0 6vw;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+    }
+
+    .portfolio-back {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: color 0.2s;
+    }
+    .portfolio-back:hover { color: var(--amber); }
+
+    .header-brand {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.1rem;
+      letter-spacing: 0.08em;
+      color: var(--white);
+      text-align: center;
+    }
+    .header-brand span { color: var(--amber); }
+
+    .sub-tab-nav {
+      display: flex;
+      gap: 0;
+      border: 1px solid var(--border2);
+      justify-content: flex-end;
+    }
+
+    .sub-tab-btn {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      padding: 0.48rem 1.3rem;
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color 0.2s, background 0.2s;
+      line-height: 1;
+    }
+    .sub-tab-btn + .sub-tab-btn { border-left: 1px solid var(--border2); }
+    .sub-tab-btn.active {
+      color: var(--amber);
+      background: var(--amber-glow);
+    }
+    .sub-tab-btn:hover:not(.active) { color: var(--text); }
+
+    /* ── CONTENT ── */
+    .tab-content {
+      display: none;
+      padding-top: var(--h);
+      min-height: 100vh;
+      position: relative;
+      z-index: 1;
+    }
+    .tab-content.active { display: block; }
+
+    /* ── OVERVIEW ── */
+    .overview-inner {
+      padding: 5rem 6vw 6rem;
+      max-width: 1200px;
+    }
+
+    .project-eyebrow {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+    .project-eyebrow::before {
+      content: '';
+      display: inline-block;
+      width: 20px;
+      height: 1px;
+      background: var(--amber);
+    }
+
+    .project-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(4rem, 10vw, 8rem);
+      line-height: 0.9;
+      color: var(--white);
+      margin-bottom: 2.5rem;
+    }
+
+    .overview-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 4rem;
+      align-items: start;
+    }
+
+    /* Left column */
+    .overview-desc {
+      font-size: 0.95rem;
+      line-height: 1.8;
+      color: var(--text);
+      margin-bottom: 2rem;
+    }
+
+    .overview-desc + .overview-desc {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .cost-callout {
+      border: 1px solid var(--border2);
+      background: var(--panel);
+      padding: 1.5rem 2rem;
+      margin: 2rem 0;
+      position: relative;
+    }
+
+    .cost-callout::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--amber);
+    }
+
+    .cost-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    .cost-row:last-child { border-bottom: none; }
+    .cost-label { color: var(--muted); font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; }
+    .cost-val { color: var(--white); font-family: 'DM Mono', monospace; font-size: 0.82rem; }
+    .cost-val.saving { color: var(--amber); }
+
+    .stack-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.8rem;
+    }
+
+    .tag-cloud {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .tag {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.3rem 0.7rem;
+      border: 1px solid var(--border2);
+      color: var(--muted);
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .tag:hover {
+      border-color: var(--amber-dim);
+      color: var(--amber);
+    }
+    .tag.hi {
+      border-color: var(--amber-dim);
+      color: var(--amber);
+      background: var(--amber-glow);
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      text-decoration: none;
+      padding: 0.7rem 1.4rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: var(--amber);
+      color: var(--bg);
+    }
+    .btn-primary:hover { background: #ffc14a; }
+    .btn-secondary {
+      border: 1px solid var(--border2);
+      color: var(--muted);
+    }
+    .btn-secondary:hover { border-color: var(--amber-dim); color: var(--amber); }
+
+    /* Right column */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      margin-bottom: 2rem;
+    }
+
+    .stat-cell {
+      background: var(--panel);
+      padding: 1.5rem;
+      transition: background 0.2s;
+    }
+    .stat-cell:hover { background: var(--panel2); }
+
+    .stat-val {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 3rem;
+      line-height: 1;
+      color: var(--amber);
+      margin-bottom: 0.3rem;
+    }
+
+    .stat-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .flow-diagram {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      padding: 1.5rem;
+    }
+
+    .flow-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.58rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    .flow-nodes {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+    }
+
+    .flow-node {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.05em;
+      padding: 0.45rem 0.8rem;
+      border: 1px solid var(--border2);
+      color: var(--text);
+      background: var(--panel2);
+      white-space: nowrap;
+    }
+
+    .flow-arrow {
+      color: var(--amber);
+      font-size: 0.7rem;
+      padding: 0 0.1rem;
+    }
+
+    /* ── ARCHITECTURE TAB ── */
+    .arch-inner {
+      padding: 4rem 6vw 6rem;
+    }
+
+    .arch-eyebrow {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+    .arch-eyebrow::before {
+      content: '';
+      display: inline-block;
+      width: 20px;
+      height: 1px;
+      background: var(--amber);
+    }
+
+    .arch-heading {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(2.5rem, 5vw, 4rem);
+      color: var(--white);
+      line-height: 1;
+      margin-bottom: 0.8rem;
+    }
+
+    .arch-sub {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 3rem;
+      max-width: 600px;
+    }
+
+    .doc-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+    }
+
+    .doc-card {
+      background: var(--panel);
+      padding: 2rem 2.2rem;
+      text-decoration: none;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      transition: background 0.25s;
+    }
+
+    .doc-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--amber);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.3s;
+    }
+
+    .doc-card:hover { background: var(--panel2); }
+    .doc-card:hover::before { transform: scaleX(1); }
+
+    .doc-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.8rem;
+      color: var(--border2);
+      line-height: 1;
+      margin-bottom: 1rem;
+      transition: color 0.2s;
+    }
+    .doc-card:hover .doc-num { color: var(--amber-dim); }
+
+    .doc-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.6rem;
+      color: var(--white);
+      line-height: 1.05;
+      margin-bottom: 0.6rem;
+    }
+
+    .doc-desc {
+      font-size: 0.8rem;
+      line-height: 1.65;
+      color: var(--muted);
+      flex: 1;
+      margin-bottom: 1.5rem;
+    }
+
+    .doc-open {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--amber);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .doc-open-arrow {
+      display: inline-block;
+      transition: transform 0.2s;
+    }
+    .doc-card:hover .doc-open-arrow { transform: translateX(4px); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .overview-grid { grid-template-columns: 1fr; gap: 2.5rem; }
+      #site-header { grid-template-columns: auto 1fr; }
+      .header-brand { text-align: left; padding-left: 1rem; }
+      .sub-tab-nav { display: none; }
+    }
+
+    @media (max-width: 600px) {
+      .stat-grid { grid-template-columns: 1fr 1fr; }
+      .doc-grid { grid-template-columns: 1fr; }
+      #site-header { grid-template-columns: 1fr auto; }
+      .header-brand { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header id="site-header">
+    <div class="header-left">
+      <a class="portfolio-back" href="https://bhaviksapru.github.io" target="_top">← Portfolio</a>
+    </div>
+    <div class="header-brand">Trade <span>Engine</span></div>
+    <div>
+      <nav class="sub-tab-nav">
+        <button class="sub-tab-btn active" onclick="switchTab('overview')">Overview</button>
+        <button class="sub-tab-btn" onclick="switchTab('arch')">Architecture</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ── OVERVIEW TAB ── -->
+  <section id="tab-overview" class="tab-content active">
+    <div class="overview-inner">
+
+      <div class="project-eyebrow">Cloud Infrastructure · Algorithmic Trading</div>
+      <h1 class="project-title">Trade<br/>Engine</h1>
+
+      <div class="overview-grid">
+
+        <!-- Left -->
+        <div>
+          <p class="overview-desc">
+            NinjaTrader charges approximately $100 per month for live trade execution — 
+            a fee that exists purely for routing orders to your broker through their 
+            integration layer. This project replaces that entirely.
+          </p>
+          <p class="overview-desc" style="margin-top:1rem;">
+            NinjaTrader is kept as a signal generator only, which is free. 
+            Every buy/sell signal it fires goes to AWS via HTTPS, where a 
+            Step Functions state machine owns the full trade lifecycle: risk checks, 
+            order placement at Interactive Brokers, fill monitoring, stop management, 
+            and position closing. A live dashboard lets you watch it all in real time.
+          </p>
+
+          <div class="cost-callout">
+            <div class="cost-row">
+              <span class="cost-label">NinjaTrader execution licence</span>
+              <span class="cost-val">~$100 / month</span>
+            </div>
+            <div class="cost-row">
+              <span class="cost-label">Trade Engine (AWS, 3-AZ HA)</span>
+              <span class="cost-val">~$42 / month</span>
+            </div>
+            <div class="cost-row">
+              <span class="cost-label">Annual saving</span>
+              <span class="cost-val saving">~$696 / year</span>
+            </div>
+          </div>
+
+          <div class="stack-title">Tech stack</div>
+          <div class="tag-cloud">
+            <span class="tag hi">AWS SAM</span>
+            <span class="tag hi">Step Functions</span>
+            <span class="tag hi">Lambda</span>
+            <span class="tag">ECS Fargate</span>
+            <span class="tag">DynamoDB</span>
+            <span class="tag">FastAPI</span>
+            <span class="tag">API Gateway</span>
+            <span class="tag">Cognito</span>
+            <span class="tag">EventBridge</span>
+            <span class="tag">CloudFront</span>
+            <span class="tag">EC2 ASG</span>
+            <span class="tag">NinjaTrader C#</span>
+            <span class="tag">Interactive Brokers</span>
+          </div>
+
+          <div class="btn-row">
+            <a href="https://github.com/bhaviksapru/trade-engine" target="_blank" class="btn btn-primary">
+              GitHub →
+            </a>
+            <a href="https://github.com/bhaviksapru/trade-engine/blob/main/SETUP.md" target="_blank" class="btn btn-secondary">
+              Setup Guide
+            </a>
+          </div>
+        </div>
+
+        <!-- Right -->
+        <div>
+          <div class="stat-grid">
+            <div class="stat-cell">
+              <div class="stat-val">~$42</div>
+              <div class="stat-label">Per month<br/>3-AZ HA on AWS</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-val">~$58</div>
+              <div class="stat-label">Saved monthly<br/>vs licence fee</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-val">11</div>
+              <div class="stat-label">Lambda functions<br/>in trade lifecycle</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-val">5s</div>
+              <div class="stat-label">Price monitoring<br/>poll interval</div>
+            </div>
+          </div>
+
+          <div class="flow-diagram">
+            <div class="flow-title">Signal flow</div>
+            <div class="flow-nodes">
+              <div class="flow-node">NinjaTrader</div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node">API Gateway</div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node">Step Functions</div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node">Lambda Workers</div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node">IB CP Gateway</div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node">IBKR</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── ARCHITECTURE TAB ── -->
+  <section id="tab-arch" class="tab-content">
+    <div class="arch-inner">
+      <div class="arch-eyebrow">Technical Documentation</div>
+      <h2 class="arch-heading">Architecture Docs</h2>
+      <p class="arch-sub">
+        Five documents covering every layer of the system — from business context down to 
+        IAM permissions and DynamoDB access patterns. Each opens full-screen.
+      </p>
+
+      <div class="doc-grid">
+
+        <a class="doc-card" href="architecture/aws-reference-architecture.html" target="_blank">
+          <div class="doc-num">01</div>
+          <div class="doc-title">AWS Reference Architecture</div>
+          <p class="doc-desc">Full service map across VPC, Step Functions, Lambda workers, CP Gateway ASG, ECS Fargate, and all managed services. Official AWS diagram style.</p>
+          <div class="doc-open">Open document <span class="doc-open-arrow">→</span></div>
+        </a>
+
+        <a class="doc-card" href="architecture/integration-architecture.html" target="_blank">
+          <div class="doc-num">02</div>
+          <div class="doc-title">Integration Architecture</div>
+          <p class="doc-desc">API contracts for every endpoint, CP Gateway IB REST inventory, DynamoDB per-Lambda access patterns, WebSocket protocol, and the EventBridge event chain.</p>
+          <div class="doc-open">Open document <span class="doc-open-arrow">→</span></div>
+        </a>
+
+        <a class="doc-card" href="architecture/security-architecture.html" target="_blank">
+          <div class="doc-num">03</div>
+          <div class="doc-title">Security Architecture</div>
+          <p class="doc-desc">Authentication flows for NinjaTrader signals and the dashboard, IAM least-privilege matrix per Lambda, VPC network isolation, secrets inventory, and full STRIDE threat model.</p>
+          <div class="doc-open">Open document <span class="doc-open-arrow">→</span></div>
+        </a>
+
+        <a class="doc-card" href="architecture/sequence-diagram.html" target="_blank">
+          <div class="doc-num">04</div>
+          <div class="doc-title">Sequence Diagram</div>
+          <p class="doc-desc">Complete trade lifecycle from NinjaTrader signal to IB fill and position close. Happy path plus all key failure paths, across every component over time.</p>
+          <div class="doc-open">Open document <span class="doc-open-arrow">→</span></div>
+        </a>
+
+        <a class="doc-card" href="architecture/operational-view.html" target="_blank">
+          <div class="doc-num">05</div>
+          <div class="doc-title">Operational View</div>
+          <p class="doc-desc">Daily market schedule (9am–4:30pm ET), monitoring and alerting matrix, failure modes with recovery paths, deployment runbooks, and key operational parameters.</p>
+          <div class="doc-open">Open document <span class="doc-open-arrow">→</span></div>
+        </a>
+
+      </div>
+    </div>
+  </section>
+
+  <script>
+    function switchTab(tab) {
+      document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.getElementById(`tab-${tab}`).classList.add('active');
+      // mark active button
+      const btns = document.querySelectorAll('.sub-tab-btn');
+      btns.forEach(b => {
+        if (b.getAttribute('onclick').includes(`'${tab}'`)) b.classList.add('active');
+      });
+    }
+  </script>
+
+</body>
+</html>
