@@ -3,8 +3,44 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <meta name="description" content="Trade Engine — AWS-based trade execution layer replacing NinjaTrader's live execution licence.">
+  <meta name="description" content="Trade Engine by Bhavik Sapru — AWS execution layer replacing NinjaTrader's live execution licence, saving ~$696/year.">
+  <meta name="author" content="Bhavik Sapru">
+  <meta name="robots" content="index, follow">
   <title>Trade Engine — Bhavik Sapru</title>
+
+  <!-- Open Graph -->
+  <meta property="og:type"        content="article">
+  <meta property="og:url"         content="https://bhaviksapru.github.io/trade-engine/">
+  <meta property="og:title"       content="Trade Engine — Bhavik Sapru">
+  <meta property="og:description" content="AWS execution layer routing NinjaTrader signals to Interactive Brokers — eliminating the $100/month execution fee.">
+  <meta property="og:site_name"   content="Bhavik Sapru">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card"        content="summary">
+  <meta name="twitter:title"       content="Trade Engine — Bhavik Sapru">
+  <meta name="twitter:description" content="AWS Step Functions trade lifecycle replacing NinjaTrader's live execution licence.">
+
+  <!-- Canonical -->
+  <link rel="canonical" href="https://bhaviksapru.github.io/trade-engine/">
+
+  <!-- JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Trade Engine",
+    "author": {
+      "@type": "Person",
+      "name": "Bhavik Sapru",
+      "url": "https://bhaviksapru.github.io/"
+    },
+    "description": "AWS-based trade execution layer that routes NinjaTrader signals directly to Interactive Brokers, eliminating the $100/month NinjaTrader execution fee.",
+    "applicationCategory": "FinanceApplication",
+    "url": "https://bhaviksapru.github.io/trade-engine/",
+    "codeRepository": "https://github.com/bhaviksapru/trade-engine"
+  }
+  </script>
+
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1160,11 +1196,7 @@
     </div>
   </section>
 
-  <!-- ════════════════════════════════════════════════════════
-       SCRIPTS
-  ════════════════════════════════════════════════════════ -->
   <script>
-  // ── TAB SWITCHING ──────────────────────────────────────────────
   function switchTab(tab) {
     document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -1175,45 +1207,19 @@
     if (tab === 'dashboard') DemoEngine.ensureRunning();
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // DEMO ENGINE — simulates a live trading session
-  // ════════════════════════════════════════════════════════════════
   const DemoEngine = (() => {
-
     let running    = false;
     let tickTimer  = null;
     let tradeTimer = null;
-
     let simSeconds = 9 * 3600 + 32 * 60;
-
     let prices = {
       MES: { bid: 5871.25, ask: 5871.50, last: 5871.25 },
       MNQ: { bid: 20948.00, ask: 20948.25, last: 20948.00 },
     };
-
     let positions = [
-      {
-        trade_id:       'te_20250314_MES_001',
-        symbol:         'MES',
-        side:           'BUY',
-        quantity:       2,
-        fill_price:     5867.50,
-        stop_loss_price:5857.50,
-        unrealized_pnl: 0,
-        status:         'OPEN',
-      },
-      {
-        trade_id:       'te_20250314_MNQ_002',
-        symbol:         'MNQ',
-        side:           'SELL',
-        quantity:       1,
-        fill_price:     20963.25,
-        stop_loss_price:20993.25,
-        unrealized_pnl: 0,
-        status:         'OPEN',
-      },
+      { trade_id:'te_20250314_MES_001', symbol:'MES', side:'BUY', quantity:2, fill_price:5867.50, stop_loss_price:5857.50, unrealized_pnl:0, status:'OPEN' },
+      { trade_id:'te_20250314_MNQ_002', symbol:'MNQ', side:'SELL', quantity:1, fill_price:20963.25, stop_loss_price:20993.25, unrealized_pnl:0, status:'OPEN' },
     ];
-
     let closedTrades = [
       { trade_id:'te_20250314_MES_X01', symbol:'MES', side:'BUY',  quantity:1, fill_price:5859.75, close_price:5865.25, pnl_usd: 27.50, exit_reason:'TAKE_PROFIT', status:'CLOSED', created_at:'2025-03-14T09:04:12Z' },
       { trade_id:'te_20250314_MNQ_X02', symbol:'MNQ', side:'SELL', quantity:1, fill_price:20972.00, close_price:20960.50, pnl_usd: 23.00, exit_reason:'TAKE_PROFIT', status:'CLOSED', created_at:'2025-03-14T09:18:44Z' },
@@ -1222,345 +1228,35 @@
       { trade_id:'te_20250313_MNQ_X05', symbol:'MNQ', side:'BUY',  quantity:1, fill_price:20830.00, close_price:20819.25, pnl_usd:-21.50, exit_reason:'STOP_LOSS',  status:'CLOSED', created_at:'2025-03-13T11:45:22Z' },
       { trade_id:'te_20250312_MES_X06', symbol:'MES', side:'BUY',  quantity:2, fill_price:5822.50, close_price:5831.00, pnl_usd: 85.00, exit_reason:'TAKE_PROFIT', status:'CLOSED', created_at:'2025-03-12T14:08:11Z' },
     ];
-
-    let todayPnl    = 27.50 + 23.00 - 18.00;
-    let winCount    = 2;
-    let lossCount   = 1;
-    let tradeCount  = 3;
-    const MAX_LOSS  = 500;
-
-    let events = [];
-
-    function simTime() {
-      const h = Math.floor(simSeconds / 3600);
-      const m = Math.floor((simSeconds % 3600) / 60);
-      const s = simSeconds % 60;
-      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    }
-
-    function rand(min, max) { return Math.random() * (max - min) + min; }
-    function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
-
-    function tickPrice(sym, momentum) {
-      const p   = prices[sym];
-      const vol = sym === 'MES' ? 0.50 : 2.00;
-      const drift = momentum * vol * 0.3;
-      const noise = (Math.random() - 0.49) * vol;
-      const move  = drift + noise;
-      const spread = sym === 'MES' ? 0.25 : 0.25;
-      const newLast = Math.round((p.last + move) * 4) / 4;
-      p.last = newLast;
-      p.bid  = newLast;
-      p.ask  = newLast + spread;
-    }
-
-    function calcUnrealizedPnl(pos) {
-      const px = prices[pos.symbol].last;
-      const tickVal = pos.symbol === 'MES' ? 1.25 : 0.50;
-      const ticks = Math.round((px - pos.fill_price) / 0.25);
-      const rawPnl = ticks * tickVal * pos.quantity;
-      return pos.side === 'BUY' ? rawPnl : -rawPnl;
-    }
-
-    function fmt(v) { const n = parseFloat(v || 0); return (n >= 0 ? '+' : '') + n.toFixed(2); }
-    function el(id) { return document.getElementById(id); }
-
-    function flashCard(id) {
-      const card = el(id);
-      if (!card) return;
-      card.classList.add('flash');
-      setTimeout(() => card.classList.remove('flash'), 600);
-    }
-
-    function renderPositions() {
-      const body = el('d-positions-body');
-      if (!body) return;
-      if (!positions.length) {
-        body.innerHTML = '<div class="empty-state">No open positions</div>';
-        return;
-      }
-      body.innerHTML = `
-        <table class="dash-table">
-          <thead><tr>
-            <th>Symbol</th><th>Side</th><th>Qty</th>
-            <th>Fill</th><th>Current</th><th>P&L</th><th>Stop</th>
-          </tr></thead>
-          <tbody>
-            ${positions.map(p => {
-              const pnl = calcUnrealizedPnl(p);
-              const cur = prices[p.symbol].last;
-              return `<tr>
-                <td><strong style="color:var(--white)">${p.symbol}</strong></td>
-                <td><span class="badge-${p.side.toLowerCase()}">${p.side}</span></td>
-                <td>${p.quantity}</td>
-                <td class="td-mono">$${p.fill_price.toFixed(2)}</td>
-                <td class="td-mono" id="d-cur-${p.trade_id}">$${cur.toFixed(2)}</td>
-                <td class="td-mono" id="d-pnl-${p.trade_id}" style="color:${pnl>=0?'var(--green)':'var(--red)'}">
-                  ${fmt(pnl)}</td>
-                <td class="td-mono">$${p.stop_loss_price.toFixed(2)}</td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>`;
-    }
-
-    function updatePositionCells() {
-      positions.forEach(p => {
-        const pnl = calcUnrealizedPnl(p);
-        const cur = prices[p.symbol].last;
-        const pnlCell = el(`d-pnl-${p.trade_id}`);
-        const curCell = el(`d-cur-${p.trade_id}`);
-        if (pnlCell) {
-          pnlCell.textContent = fmt(pnl);
-          pnlCell.style.color = pnl >= 0 ? 'var(--green)' : 'var(--red)';
-        }
-        if (curCell) curCell.textContent = `$${cur.toFixed(2)}`;
-      });
-    }
-
-    function renderMetrics() {
-      const unrealTot = positions.reduce((s, p) => s + calcUnrealizedPnl(p), 0);
-      const totalPnl  = todayPnl + unrealTot;
-      const pct       = Math.min(100, Math.abs(Math.min(0, totalPnl)) / MAX_LOSS * 100).toFixed(0);
-
-      const pnlEl = el('d-metric-pnl');
-      if (pnlEl) {
-        pnlEl.textContent  = fmt(totalPnl);
-        pnlEl.className    = 'd-card-value ' + (totalPnl >= 0 ? 'green' : 'red');
-      }
-      const subEl = el('d-metric-pnl-sub');
-      if (subEl) subEl.textContent = `${winCount}W / ${lossCount}L today`;
-
-      const openEl = el('d-metric-open');
-      if (openEl) openEl.textContent = positions.length;
-
-      const countEl = el('d-metric-count');
-      if (countEl) countEl.textContent = tradeCount;
-
-      const wrEl = el('d-metric-winrate');
-      if (wrEl) wrEl.textContent = tradeCount > 0
-        ? `${(winCount / tradeCount * 100).toFixed(0)}% win rate`
-        : '— win rate';
-
-      const limEl = el('d-metric-limit');
-      if (limEl) {
-        limEl.textContent = `${pct}%`;
-        limEl.className   = 'd-card-value ' + (pct > 80 ? 'red' : pct > 50 ? 'amber' : 'green');
-      }
-      const limSubEl = el('d-metric-limit-sub');
-      if (limSubEl) limSubEl.textContent = `$${Math.abs(Math.min(0, totalPnl)).toFixed(0)} of $${MAX_LOSS}`;
-
-      const barEl = el('d-limit-bar');
-      if (barEl) {
-        barEl.style.width = `${pct}%`;
-        barEl.style.background = pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--yellow)' : 'var(--green)';
-      }
-    }
-
-    function renderTrades() {
-      const body = el('d-trades-body');
-      if (!body) return;
-      const all = [...positions, ...closedTrades].sort((a, b) =>
-        (b.created_at || '9999') > (a.created_at || '9999') ? 1 : -1
-      );
-      if (!all.length) {
-        body.innerHTML = '<tr><td colspan="9" class="empty-state">No trades</td></tr>';
-        return;
-      }
-      body.innerHTML = all.map(t => {
-        const pnl = t.status === 'CLOSED' ? (t.pnl_usd || 0) : calcUnrealizedPnl(t);
-        const statusClass = t.status === 'OPEN' ? 'badge-open' : 'badge-closed';
-        const shortId = t.trade_id.split('_').slice(-3).join('_');
-        return `<tr>
-          <td class="td-mono" style="font-size:0.62rem">${shortId}</td>
-          <td><strong style="color:var(--white)">${t.symbol}</strong></td>
-          <td><span class="badge-${t.side.toLowerCase()}">${t.side}</span></td>
-          <td>${t.quantity}</td>
-          <td class="td-mono">$${parseFloat(t.fill_price||0).toFixed(2)}</td>
-          <td class="td-mono">${t.close_price ? '$' + parseFloat(t.close_price).toFixed(2) : '—'}</td>
-          <td class="td-mono" style="color:${pnl>=0?'var(--green)':'var(--red)'}">
-            ${t.status === 'CLOSED' ? fmt(pnl) : '<span style="color:var(--muted)">open</span>'}</td>
-          <td class="td-mono" style="font-size:0.62rem">${t.exit_reason || '—'}</td>
-          <td><span class="badge ${statusClass}">${t.status}</span></td>
-        </tr>`;
-      }).join('');
-    }
-
-    function addEvent(type, text) {
-      const feed = el('d-events-feed');
-      if (!feed) return;
-      const div = document.createElement('div');
-      div.className = `event-item`;
-      div.innerHTML = `<span class="event-time">${simTime()}</span><span class="event-type-${type}">${text}</span>`;
-      feed.insertBefore(div, feed.firstChild);
-      while (feed.children.length > 20) feed.removeChild(feed.lastChild);
-    }
-
-    let momentum = { MES: 0, MNQ: 0 };
-    let momentumTick = 0;
-
-    function tick() {
-      simSeconds += 1;
-
-      momentumTick++;
-      if (momentumTick > randInt(8, 20)) {
-        momentum.MES = rand(-1, 1);
-        momentum.MNQ = rand(-1, 1);
-        momentumTick = 0;
-      }
-
-      tickPrice('MES', momentum.MES);
-      tickPrice('MNQ', momentum.MNQ);
-
-      const hasCells = document.getElementById(`d-pnl-${positions[0]?.trade_id}`);
-      if (hasCells) {
-        updatePositionCells();
-      } else {
-        renderPositions();
-      }
-
-      renderMetrics();
-
-      if (simSeconds % 3 === 0 && positions.length) {
-        const p = positions[Math.floor(Math.random() * positions.length)];
-        const pnl = calcUnrealizedPnl(p);
-        addEvent('price', `PriceUpdate ${p.symbol} @ $${prices[p.symbol].last.toFixed(2)} · unrlzd ${fmt(pnl)}`);
-        flashCard('d-card-pnl');
-      }
-    }
-
-    const OPEN_EXIT_REASONS = ['TAKE_PROFIT', 'STOP_LOSS', 'MANUAL_CLOSE', 'TIME_EXIT'];
-    const SIGNAL_SYMBOLS    = ['MES', 'MNQ'];
-    const SIGNAL_SIDES      = ['BUY', 'SELL'];
-
-    function simulateTradeEvent() {
-      const action = Math.random();
-
-      if (action < 0.40 && positions.length > 0) {
-        const idx   = randInt(0, positions.length - 1);
-        const pos   = positions[idx];
-        const reason = OPEN_EXIT_REASONS[randInt(0, OPEN_EXIT_REASONS.length - 1)];
-        const pnl    = calcUnrealizedPnl(pos);
-        const isWin  = pnl >= 0;
-
-        const closed = {
-          ...pos,
-          status:      'CLOSED',
-          close_price: prices[pos.symbol].last,
-          pnl_usd:     pnl,
-          exit_reason: reason,
-          created_at:  new Date().toISOString(),
-        };
-        closedTrades.unshift(closed);
-        positions.splice(idx, 1);
-
-        todayPnl   += pnl;
-        tradeCount += 1;
-        if (isWin) winCount++; else lossCount++;
-
-        addEvent('trade', `TradeClose ${pos.symbol} ${pos.side} x${pos.quantity} · ${reason} · ${fmt(pnl)}`);
-        renderPositions();
-        renderTrades();
-        renderMetrics();
-        flashCard('d-card-count');
-
-      } else if (action < 0.85 && positions.length < 4) {
-        const sym  = SIGNAL_SYMBOLS[randInt(0, 1)];
-        const side = SIGNAL_SIDES[randInt(0, 1)];
-        const fill = prices[sym].last;
-        const stop = side === 'BUY'
-          ? fill - (sym === 'MES' ? 10 : 40)
-          : fill + (sym === 'MES' ? 10 : 40);
-        const qty  = randInt(1, 2);
-        const id   = `te_live_${sym}_${Date.now()}`;
-
-        positions.push({
-          trade_id:        id,
-          symbol:          sym,
-          side:            side,
-          quantity:        qty,
-          fill_price:      fill,
-          stop_loss_price: stop,
-          unrealized_pnl:  0,
-          status:          'OPEN',
-          created_at:      new Date().toISOString(),
-        });
-
-        addEvent('trade', `TradeOpen ${sym} ${side} x${qty} @ $${fill.toFixed(2)} · stop $${stop.toFixed(2)}`);
-        renderPositions();
-        renderTrades();
-        renderMetrics();
-        flashCard('d-card-open');
-      }
-
-      tradeTimer = setTimeout(simulateTradeEvent, randInt(18000, 45000));
-    }
-
-    function ensureRunning() {
-      if (running) return;
-      running = true;
-
-      renderPositions();
-      renderMetrics();
-      renderTrades();
-      addEvent('price', 'WebSocket connection established');
-      addEvent('price', 'EventBridge SQS poller active');
-
-      tickTimer  = setInterval(tick, 850);
-      tradeTimer = setTimeout(simulateTradeEvent, randInt(12000, 22000));
-    }
-
-    function stop() {
-      running = false;
-      clearInterval(tickTimer);
-      clearTimeout(tradeTimer);
-    }
-
-    return { ensureRunning, stop };
+    let todayPnl=27.50+23.00-18.00, winCount=2, lossCount=1, tradeCount=3;
+    const MAX_LOSS=500;
+    function simTime(){const h=Math.floor(simSeconds/3600),m=Math.floor((simSeconds%3600)/60),s=simSeconds%60;return`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}
+    function rand(a,b){return Math.random()*(b-a)+a;}
+    function randInt(a,b){return Math.floor(rand(a,b+1));}
+    function tickPrice(sym,momentum){const p=prices[sym],vol=sym==='MES'?0.50:2.00,drift=momentum*vol*0.3,noise=(Math.random()-0.49)*vol,move=drift+noise,spread=0.25,newLast=Math.round((p.last+move)*4)/4;p.last=newLast;p.bid=newLast;p.ask=newLast+spread;}
+    function calcUnrealizedPnl(pos){const px=prices[pos.symbol].last,tickVal=pos.symbol==='MES'?1.25:0.50,ticks=Math.round((px-pos.fill_price)/0.25),rawPnl=ticks*tickVal*pos.quantity;return pos.side==='BUY'?rawPnl:-rawPnl;}
+    function fmt(v){const n=parseFloat(v||0);return(n>=0?'+':'')+n.toFixed(2);}
+    function el(id){return document.getElementById(id);}
+    function flashCard(id){const c=el(id);if(!c)return;c.classList.add('flash');setTimeout(()=>c.classList.remove('flash'),600);}
+    function renderPositions(){const body=el('d-positions-body');if(!body)return;if(!positions.length){body.innerHTML='<div class="empty-state">No open positions</div>';return;}body.innerHTML=`<table class="dash-table"><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Fill</th><th>Current</th><th>P&L</th><th>Stop</th></tr></thead><tbody>${positions.map(p=>{const pnl=calcUnrealizedPnl(p),cur=prices[p.symbol].last;return`<tr><td><strong style="color:var(--white)">${p.symbol}</strong></td><td><span class="badge-${p.side.toLowerCase()}">${p.side}</span></td><td>${p.quantity}</td><td class="td-mono">$${p.fill_price.toFixed(2)}</td><td class="td-mono" id="d-cur-${p.trade_id}">$${cur.toFixed(2)}</td><td class="td-mono" id="d-pnl-${p.trade_id}" style="color:${pnl>=0?'var(--green)':'var(--red)'}">${fmt(pnl)}</td><td class="td-mono">$${p.stop_loss_price.toFixed(2)}</td></tr>`;}).join('')}</tbody></table>`;}
+    function updatePositionCells(){positions.forEach(p=>{const pnl=calcUnrealizedPnl(p),cur=prices[p.symbol].last,pnlCell=el(`d-pnl-${p.trade_id}`),curCell=el(`d-cur-${p.trade_id}`);if(pnlCell){pnlCell.textContent=fmt(pnl);pnlCell.style.color=pnl>=0?'var(--green)':'var(--red)';}if(curCell)curCell.textContent=`$${cur.toFixed(2)}`;});}
+    function renderMetrics(){const unrealTot=positions.reduce((s,p)=>s+calcUnrealizedPnl(p),0),totalPnl=todayPnl+unrealTot,pct=Math.min(100,Math.abs(Math.min(0,totalPnl))/MAX_LOSS*100).toFixed(0),pnlEl=el('d-metric-pnl');if(pnlEl){pnlEl.textContent=fmt(totalPnl);pnlEl.className='d-card-value '+(totalPnl>=0?'green':'red');}const subEl=el('d-metric-pnl-sub');if(subEl)subEl.textContent=`${winCount}W / ${lossCount}L today`;const openEl=el('d-metric-open');if(openEl)openEl.textContent=positions.length;const countEl=el('d-metric-count');if(countEl)countEl.textContent=tradeCount;const wrEl=el('d-metric-winrate');if(wrEl)wrEl.textContent=tradeCount>0?`${(winCount/tradeCount*100).toFixed(0)}% win rate`:'— win rate';const limEl=el('d-metric-limit');if(limEl){limEl.textContent=`${pct}%`;limEl.className='d-card-value '+(pct>80?'red':pct>50?'amber':'green');}const limSubEl=el('d-metric-limit-sub');if(limSubEl)limSubEl.textContent=`$${Math.abs(Math.min(0,totalPnl)).toFixed(0)} of $${MAX_LOSS}`;const barEl=el('d-limit-bar');if(barEl){barEl.style.width=`${pct}%`;barEl.style.background=pct>80?'var(--red)':pct>50?'var(--yellow)':'var(--green)';}}
+    function renderTrades(){const body=el('d-trades-body');if(!body)return;const all=[...positions,...closedTrades].sort((a,b)=>(b.created_at||'9999')>(a.created_at||'9999')?1:-1);if(!all.length){body.innerHTML='<tr><td colspan="9" class="empty-state">No trades</td></tr>';return;}body.innerHTML=all.map(t=>{const pnl=t.status==='CLOSED'?(t.pnl_usd||0):calcUnrealizedPnl(t),statusClass=t.status==='OPEN'?'badge-open':'badge-closed',shortId=t.trade_id.split('_').slice(-3).join('_');return`<tr><td class="td-mono" style="font-size:0.62rem">${shortId}</td><td><strong style="color:var(--white)">${t.symbol}</strong></td><td><span class="badge-${t.side.toLowerCase()}">${t.side}</span></td><td>${t.quantity}</td><td class="td-mono">$${parseFloat(t.fill_price||0).toFixed(2)}</td><td class="td-mono">${t.close_price?'$'+parseFloat(t.close_price).toFixed(2):'—'}</td><td class="td-mono" style="color:${pnl>=0?'var(--green)':'var(--red)'}">${t.status==='CLOSED'?fmt(pnl):'<span style="color:var(--muted)">open</span>'}</td><td class="td-mono" style="font-size:0.62rem">${t.exit_reason||'—'}</td><td><span class="badge ${statusClass}">${t.status}</span></td></tr>`;}).join('');}
+    function addEvent(type,text){const feed=el('d-events-feed');if(!feed)return;const div=document.createElement('div');div.className='event-item';div.innerHTML=`<span class="event-time">${simTime()}</span><span class="event-type-${type}">${text}</span>`;feed.insertBefore(div,feed.firstChild);while(feed.children.length>20)feed.removeChild(feed.lastChild);}
+    let momentum={MES:0,MNQ:0},momentumTick=0;
+    function tick(){simSeconds+=1;momentumTick++;if(momentumTick>randInt(8,20)){momentum.MES=rand(-1,1);momentum.MNQ=rand(-1,1);momentumTick=0;}tickPrice('MES',momentum.MES);tickPrice('MNQ',momentum.MNQ);const hasCells=document.getElementById(`d-pnl-${positions[0]?.trade_id}`);if(hasCells){updatePositionCells();}else{renderPositions();}renderMetrics();if(simSeconds%3===0&&positions.length){const p=positions[Math.floor(Math.random()*positions.length)],pnl=calcUnrealizedPnl(p);addEvent('price',`PriceUpdate ${p.symbol} @ $${prices[p.symbol].last.toFixed(2)} · unrlzd ${fmt(pnl)}`);flashCard('d-card-pnl');}}
+    const OPEN_EXIT_REASONS=['TAKE_PROFIT','STOP_LOSS','MANUAL_CLOSE','TIME_EXIT'],SIGNAL_SYMBOLS=['MES','MNQ'],SIGNAL_SIDES=['BUY','SELL'];
+    function simulateTradeEvent(){const action=Math.random();if(action<0.40&&positions.length>0){const idx=randInt(0,positions.length-1),pos=positions[idx],reason=OPEN_EXIT_REASONS[randInt(0,OPEN_EXIT_REASONS.length-1)],pnl=calcUnrealizedPnl(pos),isWin=pnl>=0,closed={...pos,status:'CLOSED',close_price:prices[pos.symbol].last,pnl_usd:pnl,exit_reason:reason,created_at:new Date().toISOString()};closedTrades.unshift(closed);positions.splice(idx,1);todayPnl+=pnl;tradeCount+=1;if(isWin)winCount++;else lossCount++;addEvent('trade',`TradeClose ${pos.symbol} ${pos.side} x${pos.quantity} · ${reason} · ${fmt(pnl)}`);renderPositions();renderTrades();renderMetrics();flashCard('d-card-count');}else if(action<0.85&&positions.length<4){const sym=SIGNAL_SYMBOLS[randInt(0,1)],side=SIGNAL_SIDES[randInt(0,1)],fill=prices[sym].last,stop=side==='BUY'?fill-(sym==='MES'?10:40):fill+(sym==='MES'?10:40),qty=randInt(1,2),id=`te_live_${sym}_${Date.now()}`;positions.push({trade_id:id,symbol:sym,side,quantity:qty,fill_price:fill,stop_loss_price:stop,unrealized_pnl:0,status:'OPEN',created_at:new Date().toISOString()});addEvent('trade',`TradeOpen ${sym} ${side} x${qty} @ $${fill.toFixed(2)} · stop $${stop.toFixed(2)}`);renderPositions();renderTrades();renderMetrics();flashCard('d-card-open');}tradeTimer=setTimeout(simulateTradeEvent,randInt(18000,45000));}
+    function ensureRunning(){if(running)return;running=true;renderPositions();renderMetrics();renderTrades();addEvent('price','WebSocket connection established');addEvent('price','EventBridge SQS poller active');tickTimer=setInterval(tick,850);tradeTimer=setTimeout(simulateTradeEvent,randInt(12000,22000));}
+    function stop(){running=false;clearInterval(tickTimer);clearTimeout(tradeTimer);}
+    return{ensureRunning,stop};
   })();
 
-  // ── DEMO ACTION STUBS ──────────────────────────────────────────
-  function demoAction(action) {
-    const msgs = {
-      'close-all': '⊠ Demo mode — no real orders sent. In production this market-closes all positions via IB CP Gateway.',
-      'notif':     '🔔 Notification settings are managed via DynamoDB config_table in production.',
-      'risk':      '⚙ Risk parameters (max loss, position size) update live in DynamoDB and are read by the Lambda risk-check step.',
-    };
-    showDemoToast(msgs[action] || 'Demo mode');
-  }
-
-  function demoToggleTrading(enabled) {
-    document.getElementById('d-trading-label').textContent = enabled ? 'Trading Enabled' : 'Trading Paused';
-    showDemoToast(enabled
-      ? '✓ Trading resumed — config_table pk=trading_enabled set to true'
-      : '⊡ Trading paused — config_table pk=trading_enabled set to false');
-  }
-
-  function demoRefresh() {
-    showDemoToast('↺ Data refreshed from DynamoDB (simulated)');
-    DemoEngine.ensureRunning();
-  }
-
+  function demoAction(action){const msgs={'close-all':'⊠ Demo mode — no real orders sent. In production this market-closes all positions via IB CP Gateway.','notif':'🔔 Notification settings are managed via DynamoDB config_table in production.','risk':'⚙ Risk parameters (max loss, position size) update live in DynamoDB and are read by the Lambda risk-check step.'};showDemoToast(msgs[action]||'Demo mode');}
+  function demoToggleTrading(enabled){document.getElementById('d-trading-label').textContent=enabled?'Trading Enabled':'Trading Paused';showDemoToast(enabled?'✓ Trading resumed — config_table pk=trading_enabled set to true':'⊡ Trading paused — config_table pk=trading_enabled set to false');}
+  function demoRefresh(){showDemoToast('↺ Data refreshed from DynamoDB (simulated)');DemoEngine.ensureRunning();}
   let _toastT;
-  function showDemoToast(msg) {
-    let toast = document.getElementById('d-toast');
-    if (!toast) {
-      toast = document.createElement('div');
-      toast.id = 'd-toast';
-      toast.style.cssText = `
-        position:fixed;bottom:2rem;right:2rem;z-index:999;
-        font-family:'DM Mono',monospace;font-size:0.66rem;letter-spacing:0.08em;
-        padding:0.8rem 1.3rem;background:var(--panel);border:1px solid var(--amber-dim);
-        color:var(--amber);max-width:380px;line-height:1.5;
-        opacity:0;transition:opacity 0.3s;pointer-events:none;
-      `;
-      document.body.appendChild(toast);
-    }
-    toast.textContent = msg;
-    toast.style.opacity = '1';
-    clearTimeout(_toastT);
-    _toastT = setTimeout(() => { toast.style.opacity = '0'; }, 4500);
-  }
+  function showDemoToast(msg){let toast=document.getElementById('d-toast');if(!toast){toast=document.createElement('div');toast.id='d-toast';toast.style.cssText='position:fixed;bottom:2rem;right:2rem;z-index:999;font-family:\'DM Mono\',monospace;font-size:0.66rem;letter-spacing:0.08em;padding:0.8rem 1.3rem;background:var(--panel);border:1px solid var(--amber-dim);color:var(--amber);max-width:380px;line-height:1.5;opacity:0;transition:opacity 0.3s;pointer-events:none;';document.body.appendChild(toast);}toast.textContent=msg;toast.style.opacity='1';clearTimeout(_toastT);_toastT=setTimeout(()=>{toast.style.opacity='0';},4500);}
   </script>
 
 </body>
