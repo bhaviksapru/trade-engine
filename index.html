@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="description" content="Trade Engine by Bhavik Sapru — AWS execution layer replacing NinjaTrader's live execution licence, saving ~$696/year.">
+  <meta name="author" content="Bhavik Sapru">
+  <meta name="robots" content="index, follow">
+  <title>Trade Engine — Bhavik Sapru</title>
+
+  <!-- Open Graph -->
+  <meta property="og:type"        content="article">
+  <meta property="og:url"         content="https://bhaviksapru.github.io/trade-engine/">
+  <meta property="og:title"       content="Trade Engine — Bhavik Sapru">
+  <meta property="og:description" content="AWS execution layer routing NinjaTrader signals to Interactive Brokers — eliminating the $100/month execution fee.">
+  <meta property="og:site_name"   content="Bhavik Sapru">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card"        content="summary">
+  <meta name="twitter:title"       content="Trade Engine — Bhavik Sapru">
+  <meta name="twitter:description" content="AWS Step Functions trade lifecycle replacing NinjaTrader's live execution licence.">
+
+  <!-- Canonical -->
+  <link rel="canonical" href="https://bhaviksapru.github.io/trade-engine/">
+
+  <!-- JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Trade Engine",
+    "author": {
+      "@type": "Person",
+      "name": "Bhavik Sapru",
+      "url": "https://bhaviksapru.github.io/"
+    },
+    "description": "AWS-based trade execution layer that routes NinjaTrader signals directly to Interactive Brokers, eliminating the $100/month NinjaTrader execution fee.",
+    "applicationCategory": "FinanceApplication",
+    "url": "https://bhaviksapru.github.io/trade-engine/",
+    "codeRepository": "https://github.com/bhaviksapru/trade-engine"
+  }
+  </script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:         #080909;
+      --dark:       #0d0f0f;
+      --panel:      #111414;
+      --panel2:     #161919;
+      --border:     #212525;
+      --border2:    #2b3030;
+      --amber:      #f5a623;
+      --amber-dim:  #c47d0e;
+      --amber-glow: rgba(245,166,35,0.07);
+      --white:      #ede9e0;
+      --muted:      #5e6464;
+      --text:       #aaa69e;
+      --green:      #4caf7d;
+      --red:        #e05555;
+      --yellow:     #f5c623;
+      --h:          58px;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.5;
+    }
+
+    /* ── HEADER ── */
+    #site-header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 6vw;
+      height: var(--h);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      gap: 1rem;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex-shrink: 0;
+    }
+
+    .sub-tab-nav {
+      display: flex;
+      gap: 0;
+      border: 1px solid var(--border2);
+      flex-shrink: 0;
+    }
+
+    .sub-tab-btn {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      padding: 0.48rem 1.3rem;
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color 0.2s, background 0.2s;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .sub-tab-btn + .sub-tab-btn { border-left: 1px solid var(--border2); }
+    .sub-tab-btn.active {
+      color: var(--amber);
+      background: var(--amber-glow);
+    }
+    .sub-tab-btn:hover:not(.active) { color: var(--text); }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    .portfolio-back {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: color 0.2s;
+      white-space: nowrap;
+    }
+    .portfolio-back:hover { color: var(--amber); }
+
+    .header-brand {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.1rem;
+      letter-spacing: 0.08em;
+      color: var(--white);
+      white-space: nowrap;
+    }
+    .header-brand span { color: var(--amber); }
+
+    /* ── CONTENT ── */
+    .tab-content {
+      display: none;
+      padding-top: var(--h);
+      min-height: 100vh;
+      position: relative;
+      z-index: 1;
+    }
+    .tab-content.active { display: block; }
+
+    /* ── OVERVIEW ── */
+    .overview-inner {
+      padding: 5rem 6vw 6rem;
+      max-width: 1200px;
+    }
+
+    .project-eyebrow {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+    .project-eyebrow::before {
+      content: '';
+      display: inline-block;
+      width: 20px;
+      height: 1px;
+      background: var(--amber);
+    }
+
+    .project-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(4rem, 10vw, 8rem);
+      line-height: 0.9;
+      color: var(--white);
+      margin-bottom: 2.5rem;
+    }
+
+    .overview-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 4rem;
+      align-items: start;
+    }
+
+    .overview-desc {
+      font-size: 0.95rem;
+      line-height: 1.8;
+      color: var(--text);
+      margin-bottom: 2rem;
+    }
+
+    .overview-desc + .overview-desc {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .cost-callout {
+      border: 1px solid var(--border2);
+      background: var(--panel);
+      padding: 1.5rem 2rem;
+      margin: 2rem 0;
+      position: relative;
+    }
+
+    .cost-callout::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--amber);
+    }
+
+    .cost-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    .cost-row:last-child { border-bottom: none; }
+    .cost-label { color: var(--muted); font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; }
+    .cost-val { color: var(--white); font-family: 'DM Mono', monospace; font-size: 0.82rem; }
+    .cost-val.saving { color: var(--amber); }
+
+    .stack-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.8rem;
+    }
+
+    .tag-cloud { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 2.5rem; }
+
+    .tag {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.3rem 0.7rem;
+      border: 1px solid var(--border2);
+      color: var(--muted);
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .tag:hover { border-color: var(--amber-dim); color: var(--amber); }
+    .tag.hi { border-color: var(--amber-dim); color: var(--amber); background: var(--amber-glow); }
+
+    .btn-row { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+
+    .btn {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      text-decoration: none;
+      padding: 0.7rem 1.4rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--amber); color: var(--bg); }
+    .btn-primary:hover { background: #ffc14a; }
+    .btn-secondary { border: 1px solid var(--border2); color: var(--muted); }
+    .btn-secondary:hover { border-color: var(--amber-dim); color: var(--amber); }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      margin-bottom: 2rem;
+    }
+
+    .stat-cell {
+      background: var(--panel);
+      padding: 1.5rem;
+      transition: background 0.2s;
+    }
+    .stat-cell:hover { background: var(--panel2); }
+
+    .stat-val {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 3rem;
+      line-height: 1;
+      color: var(--amber);
+      margin-bottom: 0.3rem;
+    }
+
+    .stat-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .flow-diagram {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      padding: 1.5rem;
+    }
+
+    .flow-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.58rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    .flow-nodes { display: flex; align-items: center; flex-wrap: wrap; gap: 0.3rem; }
+
+    .flow-node {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.05em;
+      padding: 0.45rem 0.8rem;
+      border: 1px solid var(--border2);
+      color: var(--text);
+      background: var(--panel2);
+      white-space: nowrap;
+    }
+
+    .flow-arrow { color: var(--amber); font-size: 0.7rem; padding: 0 0.1rem; }
+
+    /* ── ARCHITECTURE TAB ── */
+    .arch-inner { padding: 4rem 6vw 6rem; }
+
+    .arch-eyebrow {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+    .arch-eyebrow::before {
+      content: '';
+      display: inline-block;
+      width: 20px;
+      height: 1px;
+      background: var(--amber);
+    }
+
+    .arch-heading {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(2.5rem, 5vw, 4rem);
+      color: var(--white);
+      line-height: 1;
+      margin-bottom: 0.8rem;
+    }
+
+    .arch-sub {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 3rem;
+      max-width: 600px;
+    }
+
+    .doc-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+    }
+
+    .doc-card {
+      background: var(--panel);
+      padding: 2rem 2.2rem;
+      text-decoration: none;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      transition: background 0.25s;
+    }
+
+    .doc-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--amber);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.3s;
+    }
+
+    .doc-card:hover { background: var(--panel2); }
+    .doc-card:hover::before { transform: scaleX(1); }
+
+    .doc-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.8rem;
+      color: var(--border2);
+      line-height: 1;
+      margin-bottom: 1rem;
+      transition: color 0.2s;
+    }
+    .doc-card:hover .doc-num { color: var(--amber-dim); }
+
+    .doc-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.6rem;
+      color: var(--white);
+      line-height: 1.05;
+      margin-bottom: 0.6rem;
+    }
+
+    .doc-desc { font-size: 0.8rem; line-height: 1.65; color: var(--muted); flex: 1; margin-bottom: 1.5rem; }
+
+    .doc-open {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--amber);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .doc-open-arrow { display: inline-block; transition: transform 0.2s; }
+    .doc-card:hover .doc-open-arrow { transform: translateX(4px); }
+
+    /* ══════════════════════════════════════════
+       ── DASHBOARD TAB ──
+    ══════════════════════════════════════════ */
+
+    #tab-dashboard {
+      background: #0a0a0a;
+    }
+
+    .dash-wrap {
+      padding: 2rem 4vw 4rem;
+      max-width: 1380px;
+      margin: 0 auto;
+    }
+
+    /* Demo banner */
+    .demo-banner {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.6rem 1.2rem;
+      background: rgba(245,166,35,0.06);
+      border: 1px solid rgba(245,166,35,0.2);
+      border-left: 3px solid var(--amber);
+      margin-bottom: 2rem;
+    }
+    .demo-banner-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--amber);
+      animation: demo-pulse 2s infinite;
+      flex-shrink: 0;
+    }
+    @keyframes demo-pulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(245,166,35,0.5); }
+      50%      { box-shadow: 0 0 0 5px rgba(245,166,35,0); }
+    }
+    .demo-banner-text {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--amber);
+    }
+    .demo-banner-text span { color: var(--muted); margin-left: 0.8rem; font-size: 0.58rem; }
+
+    /* Dashboard nav strip */
+    .dash-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .dash-brand {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.2rem;
+      letter-spacing: 0.08em;
+      color: var(--white);
+    }
+    .dash-brand span { color: var(--amber); }
+    .dash-nav-right { display: flex; align-items: center; gap: 1.5rem; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+    .status-dot.ok  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .status-dot.err { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+    .status-label {
+      font-family: 'DM Mono', monospace; font-size: 0.6rem;
+      letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted);
+    }
+    .live-badge {
+      display: flex; align-items: center; gap: 0.4rem;
+      font-family: 'DM Mono', monospace; font-size: 0.6rem;
+      letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted);
+    }
+    .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+    .live-dot.live { background: var(--green); animation: pulse-live 2s infinite; }
+    @keyframes pulse-live {
+      0%,100%{ box-shadow: 0 0 0 0 rgba(76,175,125,0.4); }
+      50%    { box-shadow: 0 0 0 5px rgba(76,175,125,0); }
+    }
+
+    /* Metric cards */
+    .dash-grid-top {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      margin-bottom: 1.5rem;
+    }
+
+    .d-card {
+      background: var(--panel);
+      padding: 1.4rem 1.6rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .d-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 1px;
+      background: transparent;
+      transition: background 0.3s;
+    }
+    .d-card.flash::after { background: var(--amber); }
+
+    .d-card-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.58rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .d-card-label::before {
+      content: '';
+      display: inline-block;
+      width: 12px; height: 1px;
+      background: currentColor;
+    }
+    .d-card-value {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.4rem;
+      line-height: 1;
+      color: var(--white);
+      letter-spacing: 0.02em;
+      transition: color 0.4s;
+    }
+    .d-card-value.green { color: var(--green); }
+    .d-card-value.red   { color: var(--red); }
+    .d-card-value.amber { color: var(--amber); }
+    .d-card-sub { font-size: 0.72rem; color: var(--muted); margin-top: 0.3rem; }
+
+    /* Controls bar */
+    .dash-controls {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+      align-items: center;
+    }
+
+    .d-btn {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 0.5rem 1.1rem;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .d-btn:hover { border-color: var(--amber-dim); color: var(--amber); }
+    .d-btn-danger { border-color: rgba(224,85,85,0.4); color: var(--red); }
+    .d-btn-danger:hover { background: rgba(224,85,85,0.08); }
+    .d-btn-primary { border-color: var(--amber-dim); color: var(--amber); background: var(--amber-glow); }
+
+    .toggle-wrap { display: flex; align-items: center; gap: 0.7rem; }
+    .toggle { position: relative; width: 38px; height: 20px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; inset: 0;
+      background: var(--border); cursor: pointer; transition: 0.3s;
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 14px; height: 14px;
+      left: 3px; bottom: 3px;
+      background: var(--muted);
+      transition: 0.3s;
+    }
+    .toggle input:checked + .toggle-slider { background: rgba(245,166,35,0.15); border: 1px solid var(--amber-dim); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(18px); background: var(--amber); }
+    .toggle-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* Mid grid */
+    .dash-grid-mid {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      margin-bottom: 1.5rem;
+    }
+
+    .d-panel { background: var(--panel); padding: 1.5rem; }
+
+    .d-section-tag {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.58rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .d-section-tag::before {
+      content: '';
+      display: inline-block;
+      width: 16px; height: 1px;
+      background: var(--amber);
+    }
+
+    .d-section-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.4rem;
+      color: var(--white);
+      margin-bottom: 1rem;
+    }
+
+    /* Positions table */
+    .dash-table { width: 100%; border-collapse: collapse; }
+    .dash-table thead tr { border-bottom: 1px solid var(--border); }
+    .dash-table th {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.55rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 0.5rem 0.7rem;
+      text-align: left;
+      font-weight: 400;
+    }
+    .dash-table tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    .dash-table tbody tr:hover { background: rgba(245,166,35,0.04); }
+    .dash-table tbody tr:last-child { border-bottom: none; }
+    .dash-table td { padding: 0.7rem 0.7rem; font-size: 0.78rem; }
+    .td-mono { font-family: 'DM Mono', monospace; font-size: 0.68rem; }
+
+    .badge {
+      display: inline-block;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.54rem;
+      padding: 2px 6px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .badge-open   { background: rgba(245,166,35,0.12); color: var(--amber); }
+    .badge-closed { background: rgba(76,175,125,0.1);  color: var(--green); }
+    .badge-buy    { color: var(--green); font-weight: 500; }
+    .badge-sell   { color: var(--red);   font-weight: 500; }
+
+    .empty-state {
+      text-align: center;
+      padding: 2.5rem;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+    }
+
+    /* Health panel */
+    .health-row {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 0.75rem;
+      padding: 0.8rem 0;
+      border-bottom: 1px solid var(--border);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+    }
+    .health-row:last-child { border-bottom: none; }
+    .health-key {
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      min-width: 120px;
+      flex-shrink: 0;
+    }
+    .health-val {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-shrink: 0;
+    }
+    .h-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .h-dot.ok  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .h-dot.err { background: var(--red); }
+    .h-dot.warn { background: var(--yellow); }
+    .health-status-text { white-space: nowrap; }
+
+    /* Events feed */
+    .events-feed {
+      height: 120px;
+      overflow: hidden;
+      position: relative;
+      margin-top: 1rem;
+    }
+    .events-feed::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 24px;
+      background: linear-gradient(to bottom, var(--panel), transparent);
+      z-index: 2;
+      pointer-events: none;
+    }
+    .event-item {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.06em;
+      padding: 0.35rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      display: flex;
+      gap: 0.8rem;
+      align-items: baseline;
+      animation: event-in 0.4s ease;
+      color: var(--muted);
+    }
+    @keyframes event-in {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .event-time { color: var(--border2); flex-shrink: 0; }
+    .event-type-price    { color: var(--text); }
+    .event-type-trade    { color: var(--amber); }
+    .event-type-risk     { color: var(--red); }
+
+    /* Bottom grid: trade history */
+    .dash-grid-bot {
+      border: 1px solid var(--border);
+      background: var(--panel);
+    }
+    .d-panel-bot { padding: 1.5rem; }
+
+    /* PnL sparkline area */
+    .sparkline-wrap {
+      margin-bottom: 1rem;
+      height: 44px;
+      position: relative;
+    }
+    .sparkline-wrap svg { width: 100%; height: 44px; }
+
+    /* Mini chart bar for limit used */
+    .limit-bar-wrap {
+      margin-top: 0.4rem;
+      height: 3px;
+      background: var(--border);
+      position: relative;
+    }
+    .limit-bar-fill {
+      height: 100%;
+      background: var(--green);
+      transition: width 1s ease, background 0.5s;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 1100px) {
+      .dash-grid-top { grid-template-columns: 1fr 1fr; }
+      .dash-grid-mid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 900px) {
+      .overview-grid { grid-template-columns: 1fr; gap: 2.5rem; }
+      .header-brand { display: none; }
+      #site-header { padding: 0 4vw; }
+      .tab-content { padding-top: var(--h); }
+      .dash-grid-top { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (max-width: 600px) {
+      .stat-grid { grid-template-columns: 1fr 1fr; }
+      .doc-grid { grid-template-columns: 1fr; }
+      .sub-tab-btn { padding: 0.48rem 0.8rem; letter-spacing: 0.08em; }
+      .portfolio-back { font-size: 0; }
+      .portfolio-back::before { content: '←'; font-size: 0.7rem; }
+      .dash-grid-top { grid-template-columns: 1fr 1fr; }
+      .health-key { min-width: 90px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header id="site-header">
+    <div class="header-left">
+      <nav class="sub-tab-nav">
+        <button class="sub-tab-btn active"  onclick="switchTab('overview')">Overview</button>
+        <button class="sub-tab-btn"         onclick="switchTab('dashboard')">Live Demo</button>
+        <button class="sub-tab-btn"         onclick="switchTab('arch')">Architecture</button>
+      </nav>
+    </div>
+    <div class="header-right">
+      <div class="header-brand">Trade <span>Engine</span></div>
+      <a class="portfolio-back" href="https://bhaviksapru.github.io" target="_top">← Portfolio</a>
+    </div>
+  </header>
+
+  <!-- ── OVERVIEW TAB ── -->
+  <section id="tab-overview" class="tab-content active">
+    <div class="overview-inner">
+
+      <div class="project-eyebrow">Cloud Infrastructure · Algorithmic Trading</div>
+      <h1 class="project-title">Trade<br/>Engine</h1>
+
+      <div class="overview-grid">
+
+        <!-- Left -->
+        <div>
+          <p class="overview-desc">
+            NinjaTrader charges approximately $100 per month for live trade execution — 
+            a fee that exists purely for routing orders to your broker through their 
+            integration layer. This project replaces that entirely.
+          </p>
+          <p class="overview-desc" style="margin-top:1rem;">
+            NinjaTrader is kept as a signal generator only, which is free. 
+            Every buy/sell signal it fires goes to AWS via HTTPS, where a 
+            Step Functions state machine owns the full trade lifecycle: risk checks, 
+            order placement at Interactive Brokers, fill monitoring, stop management, 
+            and position closing. A live dashboard lets you watch it all in real time.
+          </p>
+
+          <div class="cost-callout">
+            <div class="cost-row">
+              <span class="cost-label">NinjaTrader execution licence</span>
+              <span class="cost-val">~$100 / month</span>
+            </div>
+            <div class="cost-row">
+              <span class="cost-label">Trade Engine (AWS, 3-AZ HA)</span>
+              <span class="cost-val">~$42 / month</span>
+            </div>
+            <div class="cost-row">
+              <span class="cost-label">Annual saving</span>
+              <span class="cost-val saving">~$696 / year</span>
+            </div>
+          </div>
+
+          <div class="stack-title">Tech stack</div>
+          <div class="tag-cloud">
+            <span class="tag hi">AWS SAM</span>
+            <span class="tag hi">Step Functions</span>
+            <span class="tag hi">Lambda</span>
+            <span class="tag">ECS Fargate</span>
+            <span class="tag">DynamoDB</span>
+            <span class="tag">FastAPI</span>
+            <span class="tag">API Gateway</span>
+            <span class="tag">Cognito</span>
+            <span class="tag">EventBridge</span>
+            <span class="tag">CloudFront</span>
+            <span class="tag">EC2 ASG</span>
+            <span class="tag">NinjaTrader C#</span>
+            <span class="tag">Interactive Brokers</span>
+          </div>
+
+          <div class="btn-row">
+            <a href="https://github.com/bhaviksapru/trade-engine" target="_blank" class="btn btn-primary">
+              GitHub →
+            </a>
+            <button class="btn btn-secondary" onclick="switchTab('dashboard')" style="border:none;cursor:pointer;">
+              Live Demo →
+            </button>
+          </div>
+        </div>
+
+        <!-- Right -->
+        <div>
+          <div class="stat-grid">
+            <div class="stat-cell">
+              <div class="stat-val">~$42</div>
+              <div class="stat-label">Per month<br/>3-AZ HA on AWS</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-val">~$58</div>
+              <div class="stat-label">Saved monthly<br/>vs licence fee</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-val">11</div>
+              <div class="stat-label">Lambda functions<br/>in trade lifecycle</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-val">5s</div>
+              <div class="stat-label">Price monitoring<br/>poll interval</div>
+            </div>
+          </div>
+
+          <div class="flow-diagram">
+            <div class="flow-title">Signal flow</div>
+            <div class="flow-nodes">
+              <div class="flow-node">NinjaTrader</div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node">API Gateway</div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node">Step Functions</div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node">Lambda Workers</div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node">IB CP Gateway</div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node">IBKR</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── DASHBOARD TAB ── -->
+  <section id="tab-dashboard" class="tab-content">
+    <div class="dash-wrap">
+
+      <!-- Demo banner -->
+      <div class="demo-banner">
+        <div class="demo-banner-dot"></div>
+        <div class="demo-banner-text">
+          Live Demo
+          <span>· Simulated data — prices, P&amp;L, and events update in real time as they would in production</span>
+        </div>
+      </div>
+
+      <!-- Dashboard nav strip -->
+      <div class="dash-nav">
+        <div class="dash-brand">Trade <span>Engine</span></div>
+        <div class="dash-nav-right">
+          <div class="live-badge">
+            <div class="live-dot live" id="d-ws-dot"></div>
+            <span id="d-ws-label">Live</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.4rem">
+            <div class="status-dot ok" id="d-ib-dot"></div>
+            <span class="status-label" id="d-ib-label">IB Connected</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metric cards -->
+      <div class="dash-grid-top">
+        <div class="d-card" id="d-card-pnl">
+          <div class="d-card-label">Daily P&amp;L</div>
+          <div class="d-card-value green" id="d-metric-pnl">+0.00</div>
+          <div class="d-card-sub" id="d-metric-pnl-sub">0W / 0L today</div>
+        </div>
+        <div class="d-card" id="d-card-open">
+          <div class="d-card-label">Open Positions</div>
+          <div class="d-card-value" id="d-metric-open">2</div>
+          <div class="d-card-sub">active trades</div>
+        </div>
+        <div class="d-card" id="d-card-count">
+          <div class="d-card-label">Today's Trades</div>
+          <div class="d-card-value" id="d-metric-count">0</div>
+          <div class="d-card-sub" id="d-metric-winrate">–</div>
+        </div>
+        <div class="d-card" id="d-card-limit">
+          <div class="d-card-label">Daily Limit Used</div>
+          <div class="d-card-value green" id="d-metric-limit">0%</div>
+          <div class="d-card-sub" id="d-metric-limit-sub">$0 of $500</div>
+          <div class="limit-bar-wrap">
+            <div class="limit-bar-fill" id="d-limit-bar" style="width:0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="dash-controls">
+        <button class="d-btn d-btn-danger" onclick="demoAction('close-all')">⊠ Close All Positions</button>
+        <div class="toggle-wrap">
+          <label class="toggle">
+            <input type="checkbox" id="d-trading-toggle" checked onchange="demoToggleTrading(this.checked)"/>
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-label" id="d-trading-label">Trading Enabled</span>
+        </div>
+        <button class="d-btn" onclick="demoAction('notif')">Notifications</button>
+        <button class="d-btn" onclick="demoAction('risk')">Risk Limits</button>
+        <button class="d-btn d-btn-primary" onclick="demoRefresh()">↺ Refresh</button>
+      </div>
+
+      <!-- Mid: positions + health/events -->
+      <div class="dash-grid-mid">
+        <!-- Open Positions -->
+        <div class="d-panel">
+          <div class="d-section-tag">Live</div>
+          <div class="d-section-title">Open Positions</div>
+          <div id="d-positions-body">
+            <div class="empty-state">Loading...</div>
+          </div>
+        </div>
+
+        <!-- Health + Events -->
+        <div class="d-panel" style="display:flex;flex-direction:column;gap:0">
+          <div>
+            <div class="d-section-tag">System</div>
+            <div class="d-section-title">Health</div>
+            <div id="d-health-body">
+              <div class="health-row">
+                <span class="health-key">Orchestrator</span>
+                <span class="health-val">
+                  <span class="h-dot ok"></span>
+                  <span class="health-status-text" style="color:var(--green);font-size:0.7rem">ok</span>
+                </span>
+              </div>
+              <div class="health-row">
+                <span class="health-key">CP Gateway</span>
+                <span class="health-val">
+                  <span class="h-dot ok" id="d-cp-dot"></span>
+                  <span class="health-status-text" style="color:var(--green);font-size:0.7rem" id="d-cp-status">authenticated</span>
+                </span>
+              </div>
+              <div class="health-row">
+                <span class="health-key">IB Session</span>
+                <span class="health-val">
+                  <span class="h-dot ok" id="d-ib-hdot"></span>
+                  <span class="health-status-text" style="color:var(--green);font-size:0.7rem" id="d-ib-hstatus">connected</span>
+                </span>
+              </div>
+              <div class="health-row">
+                <span class="health-key">EB Poller</span>
+                <span class="health-val">
+                  <span class="h-dot ok"></span>
+                  <span class="health-status-text" style="color:var(--green);font-size:0.7rem">running</span>
+                </span>
+              </div>
+              <div class="health-row">
+                <span class="health-key">SQS Queue</span>
+                <span class="health-val">
+                  <span class="h-dot ok"></span>
+                  <span class="health-status-text" style="color:var(--green);font-size:0.7rem">0 in flight</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top:1.5rem;">
+            <div class="d-section-tag">Events</div>
+            <div class="d-section-title" style="margin-bottom:0.4rem">Live Feed</div>
+            <div class="events-feed" id="d-events-feed"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trade History -->
+      <div class="dash-grid-bot">
+        <div class="d-panel-bot">
+          <div class="d-section-tag">History</div>
+          <div class="d-section-title">Recent Trades</div>
+          <div style="overflow-x:auto">
+            <table class="dash-table">
+              <thead>
+                <tr>
+                  <th>Trade ID</th><th>Symbol</th><th>Side</th><th>Qty</th>
+                  <th>Fill</th><th>Close</th><th>P&amp;L</th><th>Exit</th><th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="d-trades-body">
+                <tr><td colspan="9" class="empty-state">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /dash-wrap -->
+  </section>
+
+  <!-- ── ARCHITECTURE TAB ── -->
+  <section id="tab-arch" class="tab-content">
+    <div class="arch-inner">
+      <div class="arch-eyebrow">Technical Documentation</div>
+      <h2 class="arch-heading">Architecture Docs</h2>
+      <p class="arch-sub">
+        Six documents covering every layer of the system — from business context down to 
+        IAM permissions, DynamoDB access patterns, and full cost analysis. Each opens full-screen.
+      </p>
+
+      <div class="doc-grid">
+
+        <a class="doc-card" href="architecture/aws-reference-architecture.html" target="_blank">
+          <div class="doc-num">01</div>
+          <div class="doc-title">AWS Reference Architecture</div>
+          <p class="doc-desc">Full service map across VPC, Step Functions, Lambda workers, CP Gateway ASG, ECS Fargate, and all managed services. Official AWS diagram style.</p>
+          <div class="doc-open">Open document <span class="doc-open-arrow">→</span></div>
+        </a>
+
+        <a class="doc-card" href="architecture/integration-architecture.html" target="_blank">
+          <div class="doc-num">02</div>
+          <div class="doc-title">Integration Architecture</div>
+          <p class="doc-desc">API contracts for every endpoint, CP Gateway IB REST inventory, DynamoDB per-Lambda access patterns, WebSocket protocol, and the EventBridge event chain.</p>
+          <div class="doc-open">Open document <span class="doc-open-arrow">→</span></div>
+        </a>
+
+        <a class="doc-card" href="architecture/security-architecture.html" target="_blank">
+          <div class="doc-num">03</div>
+          <div class="doc-title">Security Architecture</div>
+          <p class="doc-desc">Authentication flows for NinjaTrader signals and the dashboard, IAM least-privilege matrix per Lambda, VPC network isolation, secrets inventory, and full STRIDE threat model.</p>
+          <div class="doc-open">Open document <span class="doc-open-arrow">→</span></div>
+        </a>
+
+        <a class="doc-card" href="architecture/sequence-diagram.html" target="_blank">
+          <div class="doc-num">04</div>
+          <div class="doc-title">Sequence Diagram</div>
+          <p class="doc-desc">Complete trade lifecycle from NinjaTrader signal to IB fill and position close. Happy path plus all key failure paths, across every component over time.</p>
+          <div class="doc-open">Open document <span class="doc-open-arrow">→</span></div>
+        </a>
+
+        <a class="doc-card" href="architecture/operational-view.html" target="_blank">
+          <div class="doc-num">05</div>
+          <div class="doc-title">Operational View</div>
+          <p class="doc-desc">Daily market schedule (9am–4:30pm ET), monitoring and alerting matrix, failure modes with recovery paths, deployment runbooks, and key operational parameters.</p>
+          <div class="doc-open">Open document <span class="doc-open-arrow">→</span></div>
+        </a>
+
+        <a class="doc-card" href="architecture/financial-analysis.html" target="_blank">
+          <div class="doc-num">06</div>
+          <div class="doc-title">Financial Analysis</div>
+          <p class="doc-desc">Full service-by-service cost breakdown, NinjaTrader licence comparison, annual saving projection, trade volume scaling table, and three cost reduction options with explicit trade-off analysis.</p>
+          <div class="doc-open">Open document <span class="doc-open-arrow">→</span></div>
+        </a>
+
+      </div>
+    </div>
+  </section>
+
+  <script>
+  function switchTab(tab) {
+    document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById(`tab-${tab}`).classList.add('active');
+    document.querySelectorAll('.sub-tab-btn').forEach(b => {
+      if (b.getAttribute('onclick').includes(`'${tab}'`)) b.classList.add('active');
+    });
+    if (tab === 'dashboard') DemoEngine.ensureRunning();
+  }
+
+  const DemoEngine = (() => {
+    let running    = false;
+    let tickTimer  = null;
+    let tradeTimer = null;
+    let simSeconds = 9 * 3600 + 32 * 60;
+    let prices = {
+      MES: { bid: 5871.25, ask: 5871.50, last: 5871.25 },
+      MNQ: { bid: 20948.00, ask: 20948.25, last: 20948.00 },
+    };
+    let positions = [
+      { trade_id:'te_20250314_MES_001', symbol:'MES', side:'BUY', quantity:2, fill_price:5867.50, stop_loss_price:5857.50, unrealized_pnl:0, status:'OPEN' },
+      { trade_id:'te_20250314_MNQ_002', symbol:'MNQ', side:'SELL', quantity:1, fill_price:20963.25, stop_loss_price:20993.25, unrealized_pnl:0, status:'OPEN' },
+    ];
+    let closedTrades = [
+      { trade_id:'te_20250314_MES_X01', symbol:'MES', side:'BUY',  quantity:1, fill_price:5859.75, close_price:5865.25, pnl_usd: 27.50, exit_reason:'TAKE_PROFIT', status:'CLOSED', created_at:'2025-03-14T09:04:12Z' },
+      { trade_id:'te_20250314_MNQ_X02', symbol:'MNQ', side:'SELL', quantity:1, fill_price:20972.00, close_price:20960.50, pnl_usd: 23.00, exit_reason:'TAKE_PROFIT', status:'CLOSED', created_at:'2025-03-14T09:18:44Z' },
+      { trade_id:'te_20250314_MES_X03', symbol:'MES', side:'SELL', quantity:2, fill_price:5875.00, close_price:5879.50, pnl_usd:-18.00, exit_reason:'STOP_LOSS',   status:'CLOSED', created_at:'2025-03-14T09:31:05Z' },
+      { trade_id:'te_20250313_MES_X04', symbol:'MES', side:'BUY',  quantity:1, fill_price:5840.00, close_price:5847.75, pnl_usd: 38.75, exit_reason:'TAKE_PROFIT', status:'CLOSED', created_at:'2025-03-13T10:12:30Z' },
+      { trade_id:'te_20250313_MNQ_X05', symbol:'MNQ', side:'BUY',  quantity:1, fill_price:20830.00, close_price:20819.25, pnl_usd:-21.50, exit_reason:'STOP_LOSS',  status:'CLOSED', created_at:'2025-03-13T11:45:22Z' },
+      { trade_id:'te_20250312_MES_X06', symbol:'MES', side:'BUY',  quantity:2, fill_price:5822.50, close_price:5831.00, pnl_usd: 85.00, exit_reason:'TAKE_PROFIT', status:'CLOSED', created_at:'2025-03-12T14:08:11Z' },
+    ];
+    let todayPnl=27.50+23.00-18.00, winCount=2, lossCount=1, tradeCount=3;
+    const MAX_LOSS=500;
+    function simTime(){const h=Math.floor(simSeconds/3600),m=Math.floor((simSeconds%3600)/60),s=simSeconds%60;return`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}
+    function rand(a,b){return Math.random()*(b-a)+a;}
+    function randInt(a,b){return Math.floor(rand(a,b+1));}
+    function tickPrice(sym,momentum){const p=prices[sym],vol=sym==='MES'?0.50:2.00,drift=momentum*vol*0.3,noise=(Math.random()-0.49)*vol,move=drift+noise,spread=0.25,newLast=Math.round((p.last+move)*4)/4;p.last=newLast;p.bid=newLast;p.ask=newLast+spread;}
+    function calcUnrealizedPnl(pos){const px=prices[pos.symbol].last,tickVal=pos.symbol==='MES'?1.25:0.50,ticks=Math.round((px-pos.fill_price)/0.25),rawPnl=ticks*tickVal*pos.quantity;return pos.side==='BUY'?rawPnl:-rawPnl;}
+    function fmt(v){const n=parseFloat(v||0);return(n>=0?'+':'')+n.toFixed(2);}
+    function el(id){return document.getElementById(id);}
+    function flashCard(id){const c=el(id);if(!c)return;c.classList.add('flash');setTimeout(()=>c.classList.remove('flash'),600);}
+    function renderPositions(){const body=el('d-positions-body');if(!body)return;if(!positions.length){body.innerHTML='<div class="empty-state">No open positions</div>';return;}body.innerHTML=`<table class="dash-table"><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Fill</th><th>Current</th><th>P&L</th><th>Stop</th></tr></thead><tbody>${positions.map(p=>{const pnl=calcUnrealizedPnl(p),cur=prices[p.symbol].last;return`<tr><td><strong style="color:var(--white)">${p.symbol}</strong></td><td><span class="badge-${p.side.toLowerCase()}">${p.side}</span></td><td>${p.quantity}</td><td class="td-mono">$${p.fill_price.toFixed(2)}</td><td class="td-mono" id="d-cur-${p.trade_id}">$${cur.toFixed(2)}</td><td class="td-mono" id="d-pnl-${p.trade_id}" style="color:${pnl>=0?'var(--green)':'var(--red)'}">${fmt(pnl)}</td><td class="td-mono">$${p.stop_loss_price.toFixed(2)}</td></tr>`;}).join('')}</tbody></table>`;}
+    function updatePositionCells(){positions.forEach(p=>{const pnl=calcUnrealizedPnl(p),cur=prices[p.symbol].last,pnlCell=el(`d-pnl-${p.trade_id}`),curCell=el(`d-cur-${p.trade_id}`);if(pnlCell){pnlCell.textContent=fmt(pnl);pnlCell.style.color=pnl>=0?'var(--green)':'var(--red)';}if(curCell)curCell.textContent=`$${cur.toFixed(2)}`;});}
+    function renderMetrics(){const unrealTot=positions.reduce((s,p)=>s+calcUnrealizedPnl(p),0),totalPnl=todayPnl+unrealTot,pct=Math.min(100,Math.abs(Math.min(0,totalPnl))/MAX_LOSS*100).toFixed(0),pnlEl=el('d-metric-pnl');if(pnlEl){pnlEl.textContent=fmt(totalPnl);pnlEl.className='d-card-value '+(totalPnl>=0?'green':'red');}const subEl=el('d-metric-pnl-sub');if(subEl)subEl.textContent=`${winCount}W / ${lossCount}L today`;const openEl=el('d-metric-open');if(openEl)openEl.textContent=positions.length;const countEl=el('d-metric-count');if(countEl)countEl.textContent=tradeCount;const wrEl=el('d-metric-winrate');if(wrEl)wrEl.textContent=tradeCount>0?`${(winCount/tradeCount*100).toFixed(0)}% win rate`:'— win rate';const limEl=el('d-metric-limit');if(limEl){limEl.textContent=`${pct}%`;limEl.className='d-card-value '+(pct>80?'red':pct>50?'amber':'green');}const limSubEl=el('d-metric-limit-sub');if(limSubEl)limSubEl.textContent=`$${Math.abs(Math.min(0,totalPnl)).toFixed(0)} of $${MAX_LOSS}`;const barEl=el('d-limit-bar');if(barEl){barEl.style.width=`${pct}%`;barEl.style.background=pct>80?'var(--red)':pct>50?'var(--yellow)':'var(--green)';}}
+    function renderTrades(){const body=el('d-trades-body');if(!body)return;const all=[...positions,...closedTrades].sort((a,b)=>(b.created_at||'9999')>(a.created_at||'9999')?1:-1);if(!all.length){body.innerHTML='<tr><td colspan="9" class="empty-state">No trades</td></tr>';return;}body.innerHTML=all.map(t=>{const pnl=t.status==='CLOSED'?(t.pnl_usd||0):calcUnrealizedPnl(t),statusClass=t.status==='OPEN'?'badge-open':'badge-closed',shortId=t.trade_id.split('_').slice(-3).join('_');return`<tr><td class="td-mono" style="font-size:0.62rem">${shortId}</td><td><strong style="color:var(--white)">${t.symbol}</strong></td><td><span class="badge-${t.side.toLowerCase()}">${t.side}</span></td><td>${t.quantity}</td><td class="td-mono">$${parseFloat(t.fill_price||0).toFixed(2)}</td><td class="td-mono">${t.close_price?'$'+parseFloat(t.close_price).toFixed(2):'—'}</td><td class="td-mono" style="color:${pnl>=0?'var(--green)':'var(--red)'}">${t.status==='CLOSED'?fmt(pnl):'<span style="color:var(--muted)">open</span>'}</td><td class="td-mono" style="font-size:0.62rem">${t.exit_reason||'—'}</td><td><span class="badge ${statusClass}">${t.status}</span></td></tr>`;}).join('');}
+    function addEvent(type,text){const feed=el('d-events-feed');if(!feed)return;const div=document.createElement('div');div.className='event-item';div.innerHTML=`<span class="event-time">${simTime()}</span><span class="event-type-${type}">${text}</span>`;feed.insertBefore(div,feed.firstChild);while(feed.children.length>20)feed.removeChild(feed.lastChild);}
+    let momentum={MES:0,MNQ:0},momentumTick=0;
+    function tick(){simSeconds+=1;momentumTick++;if(momentumTick>randInt(8,20)){momentum.MES=rand(-1,1);momentum.MNQ=rand(-1,1);momentumTick=0;}tickPrice('MES',momentum.MES);tickPrice('MNQ',momentum.MNQ);const hasCells=document.getElementById(`d-pnl-${positions[0]?.trade_id}`);if(hasCells){updatePositionCells();}else{renderPositions();}renderMetrics();if(simSeconds%3===0&&positions.length){const p=positions[Math.floor(Math.random()*positions.length)],pnl=calcUnrealizedPnl(p);addEvent('price',`PriceUpdate ${p.symbol} @ $${prices[p.symbol].last.toFixed(2)} · unrlzd ${fmt(pnl)}`);flashCard('d-card-pnl');}}
+    const OPEN_EXIT_REASONS=['TAKE_PROFIT','STOP_LOSS','MANUAL_CLOSE','TIME_EXIT'],SIGNAL_SYMBOLS=['MES','MNQ'],SIGNAL_SIDES=['BUY','SELL'];
+    function simulateTradeEvent(){const action=Math.random();if(action<0.40&&positions.length>0){const idx=randInt(0,positions.length-1),pos=positions[idx],reason=OPEN_EXIT_REASONS[randInt(0,OPEN_EXIT_REASONS.length-1)],pnl=calcUnrealizedPnl(pos),isWin=pnl>=0,closed={...pos,status:'CLOSED',close_price:prices[pos.symbol].last,pnl_usd:pnl,exit_reason:reason,created_at:new Date().toISOString()};closedTrades.unshift(closed);positions.splice(idx,1);todayPnl+=pnl;tradeCount+=1;if(isWin)winCount++;else lossCount++;addEvent('trade',`TradeClose ${pos.symbol} ${pos.side} x${pos.quantity} · ${reason} · ${fmt(pnl)}`);renderPositions();renderTrades();renderMetrics();flashCard('d-card-count');}else if(action<0.85&&positions.length<4){const sym=SIGNAL_SYMBOLS[randInt(0,1)],side=SIGNAL_SIDES[randInt(0,1)],fill=prices[sym].last,stop=side==='BUY'?fill-(sym==='MES'?10:40):fill+(sym==='MES'?10:40),qty=randInt(1,2),id=`te_live_${sym}_${Date.now()}`;positions.push({trade_id:id,symbol:sym,side,quantity:qty,fill_price:fill,stop_loss_price:stop,unrealized_pnl:0,status:'OPEN',created_at:new Date().toISOString()});addEvent('trade',`TradeOpen ${sym} ${side} x${qty} @ $${fill.toFixed(2)} · stop $${stop.toFixed(2)}`);renderPositions();renderTrades();renderMetrics();flashCard('d-card-open');}tradeTimer=setTimeout(simulateTradeEvent,randInt(18000,45000));}
+    function ensureRunning(){if(running)return;running=true;renderPositions();renderMetrics();renderTrades();addEvent('price','WebSocket connection established');addEvent('price','EventBridge SQS poller active');tickTimer=setInterval(tick,850);tradeTimer=setTimeout(simulateTradeEvent,randInt(12000,22000));}
+    function stop(){running=false;clearInterval(tickTimer);clearTimeout(tradeTimer);}
+    return{ensureRunning,stop};
+  })();
+
+  function demoAction(action){const msgs={'close-all':'⊠ Demo mode — no real orders sent. In production this market-closes all positions via IB CP Gateway.','notif':'🔔 Notification settings are managed via DynamoDB config_table in production.','risk':'⚙ Risk parameters (max loss, position size) update live in DynamoDB and are read by the Lambda risk-check step.'};showDemoToast(msgs[action]||'Demo mode');}
+  function demoToggleTrading(enabled){document.getElementById('d-trading-label').textContent=enabled?'Trading Enabled':'Trading Paused';showDemoToast(enabled?'✓ Trading resumed — config_table pk=trading_enabled set to true':'⊡ Trading paused — config_table pk=trading_enabled set to false');}
+  function demoRefresh(){showDemoToast('↺ Data refreshed from DynamoDB (simulated)');DemoEngine.ensureRunning();}
+  let _toastT;
+  function showDemoToast(msg){let toast=document.getElementById('d-toast');if(!toast){toast=document.createElement('div');toast.id='d-toast';toast.style.cssText='position:fixed;bottom:2rem;right:2rem;z-index:999;font-family:\'DM Mono\',monospace;font-size:0.66rem;letter-spacing:0.08em;padding:0.8rem 1.3rem;background:var(--panel);border:1px solid var(--amber-dim);color:var(--amber);max-width:380px;line-height:1.5;opacity:0;transition:opacity 0.3s;pointer-events:none;';document.body.appendChild(toast);}toast.textContent=msg;toast.style.opacity='1';clearTimeout(_toastT);_toastT=setTimeout(()=>{toast.style.opacity='0';},4500);}
+  </script>
+
+</body>
+</html>

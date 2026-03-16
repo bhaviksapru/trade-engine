@@ -1,0 +1,46 @@
+# ── SAM / CloudFormation ──────────────────────────────────────────────────────
+.aws-sam/                        # SAM build artifacts
+infra/samconfig.toml             # may contain parameter defaults — review before committing
+infra/.aws-sam/
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+*.egg-info/
+dist/
+
+# ── Terraform (kept for reference — no longer used) ───────────────────────────
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.backup
+infra/.terraform.lock.hcl
+infra/terraform.tfvars
+
+# ── Environment / Credentials — NEVER commit these ───────────────────────────
+.env
+.env.local
+*.env                            # catches ibgateway.env, any other .env files
+!*.env.example                   # but DO commit .env.example files
+
+# deployment-outputs.txt contains live AWS URLs — exclude
+deployment-outputs.txt
+infra/deployment-outputs.txt
+
+# AWS credentials
+.aws/
+credentials
+
+# ── NinjaTrader ───────────────────────────────────────────────────────────────
+ninjatrader/*.dll
+ninjatrader/bin/
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Lambda layer build output ────────────────────────────────────────────────
+lambdas/layer/python/

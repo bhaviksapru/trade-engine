@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Trade Engine - Integration Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600&family=Outfit:wght@300;400;500;600&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#080b11;--s1:#0e1119;--s2:#131720;--s3:#191e2b;--s4:#1e2535;
+    --border:#222840;--border2:#2d3555;
+    --amber:#f0a50e;--amber-dim:#785200;--amber-glow:rgba(240,165,14,.07);
+    --green:#24d48c;--green-dim:#0c5038;
+    --red:#ef4560;--red-dim:#5a1520;
+    --blue:#4898f5;--blue-dim:#122848;
+    --purple:#9070f0;--purple-dim:#2c1c6a;
+    --teal:#22cdb5;--teal-dim:#0c4c45;
+    --orange:#f07030;
+    --text:#626e88;--text2:#92a0b8;--white:#ccd8ec;
+    --mono:'Fira Code',monospace;
+    --sans:'Outfit',sans-serif;
+  }
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:12px;padding:32px 28px;min-height:100vh;overflow-x:auto}
+
+  h1{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:.22em;text-transform:uppercase;margin-bottom:3px}
+  .sub{font-family:var(--mono);font-size:9px;color:var(--text);letter-spacing:.1em;margin-bottom:32px}
+
+  .section{margin-bottom:28px}
+  .section-title{font-family:var(--mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;padding:6px 12px;border-left:3px solid currentColor;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+  .section-title.amber{color:var(--amber);background:var(--amber-glow);border-color:var(--amber-dim)}
+  .section-title.green {color:var(--green);background:rgba(36,212,140,.06);border-color:var(--green-dim)}
+  .section-title.blue  {color:var(--blue);background:rgba(72,152,245,.06);border-color:var(--blue-dim)}
+  .section-title.purple{color:var(--purple);background:rgba(144,112,240,.06);border-color:var(--purple-dim)}
+  .section-title.teal  {color:var(--teal);background:rgba(34,205,181,.05);border-color:var(--teal-dim)}
+  .section-title.red   {color:var(--red);background:rgba(239,69,96,.05);border-color:var(--red-dim)}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:0}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+
+  .endpoint{background:var(--s2);border:1px solid var(--border2);margin-bottom:10px;overflow:hidden}
+  .endpoint:last-child{margin-bottom:0}
+  .ep-head{display:flex;align-items:baseline;gap:10px;padding:8px 12px;background:var(--s3);border-bottom:1px solid var(--border)}
+  .ep-method{font-family:var(--mono);font-size:10px;font-weight:600;min-width:48px}
+  .method-get{color:var(--green)}
+  .method-post{color:var(--amber)}
+  .method-del{color:var(--red)}
+  .ep-path{font-family:var(--mono);font-size:10px;color:var(--white)}
+  .ep-desc{font-size:10px;color:var(--text);margin-left:auto;text-align:right}
+  .ep-body{padding:8px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:10px}
+  .ep-body.single{grid-template-columns:1fr}
+  .ep-section-label{font-family:var(--mono);font-size:8px;color:var(--text);letter-spacing:.12em;text-transform:uppercase;margin-bottom:4px}
+  .ep-field{font-family:var(--mono);font-size:9px;color:var(--text2);line-height:1.8;padding-left:8px;border-left:1px solid var(--border)}
+  .field-req{color:var(--amber)}
+  .field-opt{color:var(--text2)}
+  .field-ret{color:var(--green)}
+  .ep-auth{display:flex;gap:6px;flex-wrap:wrap;padding:4px 12px 8px;border-top:1px solid var(--border)}
+  .auth-badge{font-family:var(--mono);font-size:8px;padding:1px 6px;text-transform:uppercase;letter-spacing:.06em}
+  .ab-key{background:rgba(240,165,14,.12);color:var(--amber)}
+  .ab-jwt{background:rgba(72,152,245,.12);color:var(--blue)}
+  .ab-ip {background:rgba(239,69,96,.12);color:var(--red)}
+  .ab-none{background:rgba(98,110,136,.1);color:var(--text)}
+
+  .ib-row{display:grid;grid-template-columns:48px 260px 1fr 1fr;gap:0;border-bottom:1px solid var(--border);align-items:start}
+  .ib-row:last-child{border-bottom:none}
+  .ib-row > div{padding:6px 10px;font-size:10px;line-height:1.5}
+  .ib-head{font-family:var(--mono);font-size:8px;color:var(--text);text-transform:uppercase;letter-spacing:.1em;background:var(--s3);border-bottom:1px solid var(--border2)}
+  .ib-method{font-family:var(--mono);font-size:9px;font-weight:600}
+  .ib-path{font-family:var(--mono);font-size:9px;color:var(--white)}
+  .ib-params{font-family:var(--mono);font-size:8.5px;color:var(--text2)}
+  .ib-response{font-family:var(--mono);font-size:8.5px;color:var(--green)}
+  .ib-caller{font-size:9px;color:var(--amber)}
+
+  .ddb-table-title{font-family:var(--mono);font-size:9px;color:var(--teal);letter-spacing:.12em;text-transform:uppercase;padding:5px 10px;background:rgba(34,205,181,.06);border-bottom:1px solid var(--teal-dim);margin-bottom:0}
+  .ddb-row{display:grid;grid-template-columns:130px 52px 80px 1fr 120px;gap:0;border-bottom:1px solid var(--border);align-items:start}
+  .ddb-row:last-child{border-bottom:none}
+  .ddb-row > div{padding:5px 8px;font-size:9.5px;line-height:1.4}
+  .ddb-head{font-family:var(--mono);font-size:7.5px;color:var(--text);text-transform:uppercase;letter-spacing:.1em;background:var(--s3)}
+  .ddb-lambda{font-family:var(--mono);color:var(--amber)}
+  .ddb-op{font-family:var(--mono);font-size:8.5px;text-align:center}
+  .op-read{color:var(--blue)}
+  .op-write{color:var(--green)}
+  .op-rw{color:var(--teal)}
+  .op-del{color:var(--red)}
+  .ddb-index{font-family:var(--mono);font-size:8px;color:var(--text2)}
+  .ddb-key{font-family:var(--mono);font-size:8.5px;color:var(--text2)}
+  .ddb-note{font-size:9px;color:var(--text)}
+
+  .event-chain{display:flex;align-items:stretch;gap:0;margin-bottom:12px}
+  .ec-node{background:var(--s2);border:1px solid var(--border2);padding:12px 14px;flex:1}
+  .ec-node-title{font-family:var(--mono);font-size:10px;color:var(--white);margin-bottom:4px}
+  .ec-node-sub{font-size:9.5px;color:var(--text2);line-height:1.6}
+  .ec-node-sub code{font-family:var(--mono);font-size:8.5px;background:var(--s3);padding:0 3px}
+  .ec-arrow{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 6px;color:var(--border2);font-size:14px;flex-shrink:0}
+
+  .schema{background:var(--s3);border:1px solid var(--border);padding:10px 14px;font-family:var(--mono);font-size:9px;color:var(--text2);line-height:1.8;margin-top:6px}
+  .schema .k{color:var(--blue)}
+  .schema .v{color:var(--green)}
+  .schema .c{color:var(--text);font-style:italic}
+
+  .int-map{display:grid;grid-template-columns:180px 1fr;gap:0;background:var(--s2);border:1px solid var(--border2)}
+  .int-map-row{display:contents}
+  .int-map-row > div{padding:7px 12px;border-bottom:1px solid var(--border);font-size:10px}
+  .int-map-row:last-child > div{border-bottom:none}
+  .int-map-source{font-family:var(--mono);font-size:9px;color:var(--amber);border-right:1px solid var(--border)}
+  .int-map-detail{color:var(--text2);line-height:1.5}
+  .int-map-detail code{font-family:var(--mono);font-size:8.5px;background:var(--s3);padding:0 3px;color:var(--teal)}
+
+  .ws-msg{background:var(--s2);border:1px solid var(--border2);margin-bottom:6px;padding:8px 12px}
+  .ws-dir{font-family:var(--mono);font-size:8px;padding:1px 6px;margin-right:6px;text-transform:uppercase;letter-spacing:.06em}
+  .ws-from-server{background:rgba(36,212,140,.1);color:var(--green)}
+  .ws-name{font-family:var(--mono);font-size:10px;color:var(--white)}
+  .ws-body{font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:4px;padding-left:8px;border-left:1px solid var(--border);line-height:1.7}
+</style>
+</head>
+<body>
+
+<h1>Integration Architecture</h1>
+<p class="sub">trade-engine · API contracts · CP Gateway endpoints · DynamoDB access patterns · event integration · WebSocket protocol</p>
+
+<div class="section">
+  <div class="section-title amber">① External API Surface — Inbound Interfaces</div>
+  <div class="grid2">
+    <div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--text);letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">Signal Ingestion — API Gateway HTTP API</div>
+      <div class="endpoint">
+        <div class="ep-head">
+          <span class="ep-method method-post">POST</span>
+          <span class="ep-path">/signal</span>
+          <span class="ep-desc">NinjaTrader trade signal</span>
+        </div>
+        <div class="ep-body">
+          <div>
+            <div class="ep-section-label">Request body</div>
+            <div class="ep-field">
+              <span class="field-req">strategy_id</span> string  required<br/>
+              <span class="field-req">symbol</span>      string  required  "MES"<br/>
+              <span class="field-req">side</span>        string  BUY | SELL<br/>
+              <span class="field-req">quantity</span>    integer &gt; 0<br/>
+              <span class="field-opt">order_type</span>  string  MKT | LMT  default MKT<br/>
+              <span class="field-opt">limit_price</span> float   required if LMT<br/>
+              <span class="field-opt">comment</span>     string  strategy annotation
+            </div>
+          </div>
+          <div>
+            <div class="ep-section-label">202 Accepted</div>
+            <div class="ep-field">
+              <span class="field-ret">status</span>        "accepted"<br/>
+              <span class="field-ret">trade_id</span>      "trade_YYYYMMDD_…"<br/>
+              <span class="field-ret">execution_arn</span> Step Functions ARN
+            </div>
+            <div class="ep-section-label" style="margin-top:8px">Error responses</div>
+            <div class="ep-field">
+              400  Missing / invalid fields<br/>
+              200  {status:"paused"}  trading disabled<br/>
+              403  API key or IP check failed<br/>
+              409  Duplicate trade_id (idempotency)<br/>
+              500  SF StartExecution failure
+            </div>
+          </div>
+        </div>
+        <div class="ep-auth">
+          <span class="auth-badge ab-key">X-API-Key header</span>
+          <span class="auth-badge ab-ip">Source IP allowlist</span>
+          <span style="font-family:var(--mono);font-size:8px;color:var(--text)">Both checked by api_authorizer λ before signal λ is invoked</span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--text);letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">Dashboard API — FastAPI (ECS Fargate) · all require Bearer JWT</div>
+
+      <div class="endpoint">
+        <div class="ep-head"><span class="ep-method method-get">GET</span><span class="ep-path">/positions</span><span class="ep-desc">current open positions</span></div>
+        <div class="ep-body single"><div class="ep-field"><span class="field-ret">positions[]</span>  OPEN trades with unrealized_pnl · <span class="field-ret">count</span> integer</div></div>
+        <div class="ep-auth"><span class="auth-badge ab-jwt">Cognito JWT (RS256)</span><span class="auth-badge ab-none">email allowlist</span></div>
+      </div>
+
+      <div class="endpoint">
+        <div class="ep-head"><span class="ep-method method-get">GET</span><span class="ep-path">/positions/trades</span><span class="ep-desc">trade history</span></div>
+        <div class="ep-body single">
+          <div class="ep-field">
+            <span class="field-opt">?days=7</span>  lookback window (1–90)<br/>
+            <span class="field-opt">?strategy_id=</span>  filter by strategy (uses StrategyIndex GSI)<br/>
+            <span class="field-opt">?status=</span>  filter by status (post-query filter)<br/>
+            <span class="field-ret">trades[]</span> sorted desc by created_at
+          </div>
+        </div>
+        <div class="ep-auth"><span class="auth-badge ab-jwt">Cognito JWT</span></div>
+      </div>
+
+      <div class="endpoint">
+        <div class="ep-head"><span class="ep-method method-get">GET</span><span class="ep-path">/positions/risk</span><span class="ep-desc">live risk state</span></div>
+        <div class="ep-body single">
+          <div class="ep-field">
+            <span class="field-ret">trading_enabled</span> bool · <span class="field-ret">trading_disabled_reason</span> string<br/>
+            <span class="field-ret">daily_pnl</span> · <span class="field-ret">win_count</span> · <span class="field-ret">loss_count</span> · <span class="field-ret">daily_trade_count</span><br/>
+            <span class="field-ret">open_positions</span> · <span class="field-ret">max_daily_loss</span> · <span class="field-ret">max_position_size</span>
+          </div>
+        </div>
+        <div class="ep-auth"><span class="auth-badge ab-jwt">Cognito JWT</span></div>
+      </div>
+
+      <div class="endpoint">
+        <div class="ep-head"><span class="ep-method method-get">GET</span><span class="ep-path">/health</span><span class="ep-desc">system health check</span></div>
+        <div class="ep-body single">
+          <div class="ep-field"><span class="field-ret">orchestrator</span> "ok" · <span class="field-ret">signal_lambda</span> "reachable"|"unreachable:…" · <span class="field-ret">ready</span> bool</div>
+        </div>
+        <div class="ep-auth"><span class="auth-badge ab-jwt">Cognito JWT</span></div>
+      </div>
+
+      <div class="endpoint">
+        <div class="ep-head"><span class="ep-method method-post">POST</span><span class="ep-path">/actions/close-all-positions</span></div>
+        <div class="ep-body single"><div class="ep-field">Stops all SF executions · cancels GTC stops · MKT closes all · disables trading<br/><span class="field-ret">closed[]</span> trade_ids · <span class="field-ret">failed[]</span> {trade_id, error}</div></div>
+        <div class="ep-auth"><span class="auth-badge ab-jwt">Cognito JWT</span></div>
+      </div>
+
+      <div class="endpoint">
+        <div class="ep-head"><span class="ep-method method-post">POST</span><span class="ep-path">/actions/pause-trading</span><span class="ep-desc"> / /resume-trading</span></div>
+        <div class="ep-body single"><div class="ep-field">Writes <code>pk=trading_enabled</code> to ConfigTable. reason=manual_pause | manual_resume.</div></div>
+        <div class="ep-auth"><span class="auth-badge ab-jwt">Cognito JWT</span></div>
+      </div>
+
+      <div class="endpoint">
+        <div class="ep-head"><span class="ep-method method-post">POST</span><span class="ep-path">/actions/set-risk-parameters</span></div>
+        <div class="ep-body single">
+          <div class="ep-field">
+            Body (all optional): <span class="field-opt">max_daily_loss_usd</span> float · <span class="field-opt">max_position_size</span> int · <span class="field-opt">order_cooldown_secs</span> int
+          </div>
+        </div>
+        <div class="ep-auth"><span class="auth-badge ab-jwt">Cognito JWT</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title blue">② WebSocket Protocol — WSS /live?token=&lt;cognito_id_token&gt;</div>
+  <div class="grid2">
+    <div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--text);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px">Connection handshake</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text2);line-height:1.8;background:var(--s2);border:1px solid var(--border2);padding:10px 12px;margin-bottom:10px">
+        <span style="color:var(--text)">1.</span> Client opens WSS connection with JWT as query param<br/>
+        <span style="color:var(--text)">   </span> <span style="color:var(--amber)">Note:</span> Header auth not available in browser WebSocket API<br/>
+        <span style="color:var(--text)">2.</span> Server verifies JWT via Cognito JWKS <strong style="color:var(--white)">before</strong> websocket.accept()<br/>
+        <span style="color:var(--text)">   </span> JWT expired → close(4001) · email mismatch → close(4003)<br/>
+        <span style="color:var(--text)">3.</span> On auth success: <code>{"type":"connected","message":"Live stream active"}</code><br/>
+        <span style="color:var(--text)">4.</span> Server sends keep-alive ping every 30s if no events
+      </div>
+    </div>
+    <div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--text);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px">Server-sent messages</div>
+      <div class="ws-msg">
+        <div><span class="ws-dir ws-from-server">server→client</span><span class="ws-name">PriceUpdate</span> <span style="font-family:var(--mono);font-size:8px;color:var(--text)">every 5s per open trade</span></div>
+        <div class="ws-body">type: "PriceUpdate"<br/>data: { trade_id, symbol, current_price, unrealized_pnl, stop_loss_price, take_profit_price, timestamp }</div>
+      </div>
+      <div class="ws-msg">
+        <div><span class="ws-dir ws-from-server">server→client</span><span class="ws-name">ping</span> <span style="font-family:var(--mono);font-size:8px;color:var(--text)">every 30s idle</span></div>
+        <div class="ws-body">type: "ping"  — client should not respond</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ③ CP GATEWAY — section title updated: private-ip → nlb-dns -->
+<div class="section">
+  <div class="section-title green">③ CP Gateway API Endpoint Inventory — IB Client Portal REST API · http://&lt;nlb-dns&gt;:5000</div>
+
+  <div style="background:var(--s1);border:1px solid var(--border2)">
+    <div class="ib-row ib-head">
+      <div>Method</div><div>Endpoint</div><div>Request params / body</div><div>Response (key fields)</div>
+    </div>
+
+    <div class="ib-row">
+      <div class="ib-method method-get">GET</div>
+      <div class="ib-path">/v1/api/portfolio/accounts</div>
+      <div class="ib-params">—  (no params)</div>
+      <div><div class="ib-response">[{accountId: "Uxxxxxxx", …}]</div><div class="ib-caller">Used by: place_order, set_stop, close_position, dead_man, portfolio_risk, dashboard actions</div></div>
+    </div>
+
+    <div class="ib-row">
+      <div class="ib-method method-get">GET</div>
+      <div class="ib-path">/v1/api/iserver/secdef/search</div>
+      <div class="ib-params">symbol=MES  secType=FUT<br/><span style="color:var(--amber);font-size:8px">secType MUST be FUT not STK</span></div>
+      <div><div class="ib-response">[{conid: 12345, …}]  index 0 = front-month</div><div class="ib-caller">Used by: place_order, set_stop, check_price, close_position, dead_man, portfolio_risk, dashboard actions</div></div>
+    </div>
+
+    <div class="ib-row">
+      <div class="ib-method method-post">POST</div>
+      <div class="ib-path">/v1/api/iserver/account/{id}/orders</div>
+      <div class="ib-params">{orders:[{conid, orderType, side, quantity, tif, price?}]}<br/>orderType: MKT | LMT | STP<br/>tif: DAY (entry/close) | GTC (stop)</div>
+      <div><div class="ib-response">[{order_id|id: "…", status, …}]</div><div class="ib-caller">Place entry: place_order · Place stop: set_stop · Close: close_position, dead_man, portfolio_risk, dashboard actions</div></div>
+    </div>
+
+    <div class="ib-row">
+      <div class="ib-method method-get">GET</div>
+      <div class="ib-path">/v1/api/iserver/account/orders</div>
+      <div class="ib-params">filters=filled,inactive</div>
+      <div><div class="ib-response">{orders:[{orderId|id, status, avgPrice|price, …}]}</div><div class="ib-caller">wait_for_fill — polls until status="filled"</div></div>
+    </div>
+
+    <div class="ib-row">
+      <div class="ib-method method-del">DEL</div>
+      <div class="ib-path">/v1/api/iserver/account/{id}/order/{orderId}</div>
+      <div class="ib-params">—  (no body)</div>
+      <div><div class="ib-response">200 OK | 404 Not Found (order already gone — swallowed)</div><div class="ib-caller">Cancel GTC stop: close_position (unconditional) · Cancel entry: CancelOrder state · Emergency: dead_man, portfolio_risk, dashboard close-all</div></div>
+    </div>
+
+    <div class="ib-row">
+      <div class="ib-method method-get">GET</div>
+      <div class="ib-path">/v1/api/iserver/marketdata/snapshot</div>
+      <div class="ib-params">conids=&lt;conid&gt;  fields=31,84,86<br/>31=last  84=bid  86=ask</div>
+      <div><div class="ib-response">[{31: price, 84: bid, 86: ask}]</div><div class="ib-caller">check_price (every 5s) · close_position (for close_price)</div></div>
+    </div>
+
+    <div class="ib-row">
+      <div class="ib-method method-get">GET</div>
+      <div class="ib-path">/v1/api/iserver/auth/status</div>
+      <div class="ib-params">—</div>
+      <div><div class="ib-response">{authenticated: true|false, …}</div><div class="ib-caller">tickle λ — every 55s session check</div></div>
+    </div>
+
+    <div class="ib-row">
+      <div class="ib-method method-post">POST</div>
+      <div class="ib-path">/v1/api/tickle</div>
+      <div class="ib-params">—  (no body)</div>
+      <div><div class="ib-response">200 OK — refreshes session TTL</div><div class="ib-caller">tickle λ — called after auth/status confirms authenticated=true</div></div>
+    </div>
+
+    <div class="ib-row">
+      <div class="ib-method method-post">POST</div>
+      <div class="ib-path">/v1/api/iserver/reauthenticate</div>
+      <div class="ib-params">—  (no body)</div>
+      <div><div class="ib-response">200 = success  (retried up to 3×)</div><div class="ib-caller">tickle λ — when authenticated=false</div></div>
+    </div>
+  </div>
+
+  <!-- Footer note updated: EC2-private-ip → NLB-DNS with ASG note -->
+  <div style="margin-top:8px;font-family:var(--mono);font-size:8.5px;color:var(--text);line-height:1.7">
+    All calls use <code>httpx</code> with <code>verify=False</code> (CP Gateway uses a self-signed cert) · All calls are within VPC private subnet — never traverse the public internet ·
+    Timeouts: read=5s, order writes=10s · CP Gateway URL from <code>CP_GATEWAY_URL</code> env var = <code>http://&lt;NLB-DNS&gt;:5000</code> (stable internal NLB DNS — survives ASG instance replacement)
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title teal">④ DynamoDB Access Patterns — per Lambda per Table</div>
+
+  <div style="background:var(--s1);border:1px solid var(--border2);margin-bottom:14px">
+    <div class="ddb-table-title">trade-engine-trades  ·  PK: trade_id  ·  GSI-1: StatusIndex (status / created_at)  ·  GSI-2: StrategyIndex (strategy_id / created_at)</div>
+    <div class="ddb-row ddb-head">
+      <div>Lambda</div><div>Op</div><div>Index</div><div>Key / Condition</div><div>Fields read/written</div>
+    </div>
+    <div class="ddb-row"><div class="ddb-lambda">signal</div><div class="ddb-op op-write">PutItem</div><div class="ddb-index">—</div><div class="ddb-key">trade_id (new)</div><div class="ddb-note">trade_id, strategy_id, symbol, side, qty, order_type, execution_arn, status=PENDING, created_at</div></div>
+    <div class="ddb-row"><div class="ddb-lambda">risk_check</div><div class="ddb-op op-read">Query</div><div class="ddb-index">StatusIndex ×4</div><div class="ddb-key">status IN (PENDING, PENDING_FILL, FILLED, OPEN) — SELECT COUNT</div><div class="ddb-note">Count only — enforces max_position_size against all in-flight trades</div></div>
+    <div class="ddb-row"><div class="ddb-lambda">place_order</div><div class="ddb-op op-write">UpdateItem</div><div class="ddb-index">—</div><div class="ddb-key">trade_id</div><div class="ddb-note">SET ib_order_id, conid, status=PENDING_FILL, created_at</div></div>
+    <div class="ddb-row"><div class="ddb-lambda">wait_for_fill</div><div class="ddb-op op-write">UpdateItem</div><div class="ddb-index">—</div><div class="ddb-key">trade_id</div><div class="ddb-note">SET fill_price, fill_time, status=FILLED</div></div>
+    <div class="ddb-row"><div class="ddb-lambda">set_stop</div><div class="ddb-op op-write">UpdateItem</div><div class="ddb-index">—</div><div class="ddb-key">trade_id</div><div class="ddb-note">SET stop_loss_price, take_profit_price, stop_order_id, status=OPEN, updated_at</div></div>
+    <div class="ddb-row"><div class="ddb-lambda">check_price</div><div class="ddb-op op-write">UpdateItem</div><div class="ddb-index">—</div><div class="ddb-key">trade_id</div><div class="ddb-note">SET last_heartbeat, unrealized_pnl  (every 5s per open trade)</div></div>
+    <div class="ddb-row"><div class="ddb-lambda">close_position</div><div class="ddb-op op-rw">GetItem + UpdateItem</div><div class="ddb-index">—</div><div class="ddb-key">trade_id</div><div class="ddb-note">GET: fill_price, stop_order_id, strategy_id · SET close_price, close_time, exit_reason, status=CLOSED, pnl_usd</div></div>
+    <div class="ddb-row"><div class="ddb-lambda">log_trade</div><div class="ddb-op op-write">UpdateItem</div><div class="ddb-index">—</div><div class="ddb-key">trade_id</div><div class="ddb-note">SET status (final), pnl_usd, close_price, exit_reason, logged_at</div></div>
+    <div class="ddb-row"><div class="ddb-lambda">portfolio_risk</div><div class="ddb-op op-rw">Query + UpdateItem</div><div class="ddb-index">StatusIndex</div><div class="ddb-key">status=OPEN</div><div class="ddb-note">GET: all OPEN trades · SET status=CLOSED, exit_reason=PORTFOLIO_RISK_LIMIT</div></div>
+    <div class="ddb-row"><div class="ddb-lambda">dead_man</div><div class="ddb-op op-rw">Query + UpdateItem</div><div class="ddb-index">StatusIndex</div><div class="ddb-key">status=OPEN</div><div class="ddb-note">GET: last_heartbeat, execution_arn, stop_order_id · SET status=CLOSED, exit_reason=DEAD_MAN_TRIGGERED</div></div>
+    <div class="ddb-row"><div class="ddb-lambda">dashboard-api</div><div class="ddb-op op-rw">Query + UpdateItem</div><div class="ddb-index">StatusIndex · StrategyIndex · Scan</div><div class="ddb-key">status=OPEN · strategy_id+created_at · full scan</div><div class="ddb-note">Read: positions, trade history · Write: status=CLOSED on manual close actions</div></div>
+  </div>
+
+  <div style="background:var(--s1);border:1px solid var(--border2);margin-bottom:14px">
+    <div class="ddb-table-title">trade-engine-config  ·  PK: pk (string)  ·  Key-value store</div>
+    <div class="ddb-row ddb-head"><div>pk value</div><div>Op</div><div style="grid-column:span 3">Readers / Writers · Key fields</div></div>
+    <div class="ddb-row" style="grid-template-columns:200px 52px 1fr"><div class="ddb-lambda">trading_enabled</div><div class="ddb-op op-rw">Get/Put</div><div class="ddb-note">Read: signal, risk_check, tickle · Write: tickle, portfolio_risk, dead_man, dashboard actions</div></div>
+    <div class="ddb-row" style="grid-template-columns:200px 52px 1fr"><div class="ddb-lambda">risk_parameters</div><div class="ddb-op op-rw">Get/Update</div><div class="ddb-note">Read: risk_check, portfolio_risk · Write: dashboard /actions/set-risk-parameters</div></div>
+    <div class="ddb-row" style="grid-template-columns:200px 52px 1fr"><div class="ddb-lambda">notification_preferences</div><div class="ddb-op op-rw">Get/Update</div><div class="ddb-note">Read: log_trade, tickle · Write: dashboard /actions/notifications/update</div></div>
+    <div class="ddb-row" style="grid-template-columns:200px 52px 1fr"><div class="ddb-lambda">daily_pnl#YYYY-MM-DD</div><div class="ddb-op op-rw">Get/Update</div><div class="ddb-note">Read: risk_check (daily loss gate), portfolio_risk · Write: log_trade (ADD total_pnl, trade_count, win_count|loss_count)</div></div>
+  </div>
+
+  <div style="background:var(--s1);border:1px solid var(--border2)">
+    <div class="ddb-table-title">trade-engine-positions  ·  PK: strategy_id  ·  SK: symbol  ·  Current open positions only</div>
+    <div class="ddb-row ddb-head"><div>Lambda</div><div>Op</div><div>Index</div><div>Key</div><div>Notes</div></div>
+    <div class="ddb-row"><div class="ddb-lambda">close_position</div><div class="ddb-op op-del">DeleteItem</div><div class="ddb-index">—</div><div class="ddb-key">strategy_id + symbol</div><div class="ddb-note">Clears position record on normal close</div></div>
+    <div class="ddb-row"><div class="ddb-lambda">dashboard-api</div><div class="ddb-op op-read">Scan</div><div class="ddb-index">—</div><div class="ddb-key">—</div><div class="ddb-note">Supplementary read in GET /positions (trades StatusIndex is authoritative)</div></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title purple">⑤ Event &amp; Async Integration Chain</div>
+
+  <div class="event-chain">
+    <div class="ec-node">
+      <div class="ec-node-title">check_price λ</div>
+      <div class="ec-node-sub">Every 5s per open trade<br/><code>events.put_events()</code><br/>Source: <code>trade-engine.check-price</code><br/>DetailType: <code>PriceUpdate</code></div>
+    </div>
+    <div class="ec-arrow">→</div>
+    <div class="ec-node">
+      <div class="ec-node-title">EventBridge Custom Bus</div>
+      <div class="ec-node-sub">Bus: <code>trade-engine-events-{stack}</code><br/>Rule: source + DetailType match</div>
+    </div>
+    <div class="ec-arrow">→</div>
+    <div class="ec-node">
+      <div class="ec-node-title">SQS Queue</div>
+      <div class="ec-node-sub">Retention: 5 minutes<br/>VisibilityTimeout: 30s<br/>DLQ after 3 receive failures</div>
+    </div>
+    <div class="ec-arrow">→</div>
+    <div class="ec-node">
+      <div class="ec-node-title">FastAPI poll_eventbridge_sqs()</div>
+      <div class="ec-node-sub">Background asyncio task<br/><code>run_in_executor</code> for SQS calls<br/>Long-poll: WaitTimeSeconds=5<br/>Batch: MaxNumberOfMessages=10</div>
+    </div>
+    <div class="ec-arrow">→</div>
+    <div class="ec-node">
+      <div class="ec-node-title">broadcast() → WebSocket clients</div>
+      <div class="ec-node-sub">Fan-out via asyncio.Queue<br/>Dead clients pruned on send error<br/>Queue maxsize=100 per client</div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--text);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px">PriceUpdate event schema</div>
+      <div class="schema">
+        {<br/>
+        &nbsp;&nbsp;<span class="k">"source"</span>: <span class="v">"trade-engine.check-price"</span>,<br/>
+        &nbsp;&nbsp;<span class="k">"detail-type"</span>: <span class="v">"PriceUpdate"</span>,<br/>
+        &nbsp;&nbsp;<span class="k">"detail"</span>: {<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"trade_id"</span>: <span class="v">"trade_20240315_…"</span>,<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"symbol"</span>: <span class="v">"MES"</span>,<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"current_price"</span>: <span class="v">5234.50</span>,<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"unrealized_pnl"</span>: <span class="v">12.50</span>,<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"stop_loss_price"</span>: <span class="v">5231.00</span>,<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"take_profit_price"</span>: <span class="v">5239.00</span>,<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"timestamp"</span>: <span class="v">"2024-03-15T14:32:00Z"</span><br/>
+        &nbsp;&nbsp;}<br/>
+        }
+      </div>
+    </div>
+    <div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--text);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px">SNS Alerting — trade-engine-alerts-{stack}</div>
+      <div class="int-map" style="margin-bottom:0">
+        <div class="int-map-row"><div class="int-map-source">log_trade λ</div><div class="int-map-detail">Publishes on STOP_HIT, TP_HIT, REJECTED based on <code>notification_preferences</code>.</div></div>
+        <div class="int-map-row"><div class="int-map-source">portfolio_risk λ</div><div class="int-map-detail">Publishes on daily loss limit breach — "PORTFOLIO RISK LIMIT HIT".</div></div>
+        <div class="int-map-row"><div class="int-map-source">dead_man λ</div><div class="int-map-detail">Publishes on orphaned position detected — "DEAD MAN TRIGGERED".</div></div>
+        <div class="int-map-row"><div class="int-map-source">tickle λ</div><div class="int-map-detail">Publishes on CP Gateway unreachable or all reauth attempts failed.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title red">⑥ Secrets &amp; Configuration Integration</div>
+  <div class="grid2">
+    <div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--text);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px">Secrets Manager consumer map</div>
+      <div class="int-map">
+        <div class="int-map-row">
+          <div class="int-map-source">ib-credentials</div>
+          <div class="int-map-detail">EC2 ASG UserData only. Read once at instance boot via instance role. Written to <code>/opt/ibgateway/config/ibgateway.env</code>. Never passed to any Lambda. Fields: username, password, account_id, mode (paper|live).</div>
+        </div>
+        <div class="int-map-row">
+          <div class="int-map-source">api-key-{stack}</div>
+          <div class="int-map-detail">api_authorizer λ only. <code>GetSecretValue</code> on first invocation, cached in global <code>_cached_key</code> variable (Lambda container lifetime). Never logged.</div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--text);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px">Runtime configuration via DynamoDB ConfigTable</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text2);line-height:1.9;background:var(--s2);border:1px solid var(--border2);padding:10px 12px">
+        All runtime flags live in DynamoDB ConfigTable, not Lambda env vars.<br/>
+        This allows live changes from the dashboard without redeployment.<br/><br/>
+        <span style="color:var(--amber)">trading_enabled</span>  — gate checked by signal λ and risk_check λ on every signal<br/>
+        <span style="color:var(--amber)">risk_parameters</span>  — max_daily_loss_usd, max_position_size, order_cooldown_secs<br/>
+        <span style="color:var(--amber)">daily_pnl#date</span>   — cumulative P&L counter, updated atomically via ADD expression<br/>
+        <span style="color:var(--amber)">notification_prefs</span> — enabled flag + per-event-type toggles<br/><br/>
+        <span style="color:var(--text)">Lambda env vars hold only non-sensitive config:</span><br/>
+        TRADES_TABLE, CONFIG_TABLE, POSITIONS_TABLE, EVENT_BUS_NAME,<br/>
+        CP_GATEWAY_URL (internal NLB DNS — stable across ASG replacements),<br/>
+        SNS_TOPIC_ARN, TRADE_LIFECYCLE_ARN, MAX_POSITION_SIZE
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

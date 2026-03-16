@@ -1,0 +1,113 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Trade Engine - CloudFront CDN for dashboard UI static files
+
+Parameters:
+  StackName:
+    Type: String
+  AlbDnsName:
+    Type: String
+    Description: ALB DNS name for API/WebSocket origin
+
+Resources:
+
+  # Origin Access Control - CloudFront can read S3 without making bucket public
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub trade-engine-oac-${StackName}
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  DashboardBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Sub trade-engine-dashboard-${StackName}-${AWS::AccountId}
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "arn:aws:s3:::trade-engine-dashboard-${StackName}-${AWS::AccountId}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: !Sub Trade Engine dashboard - ${StackName}
+        Enabled: true
+        DefaultRootObject: index.html
+        HttpVersion: http2
+        PriceClass: PriceClass_100   # cheapest
+        Origins:
+          # S3 origin - serves HTML/CSS/JS
+          - Id: S3Origin
+            DomainName: !Sub "trade-engine-dashboard-${StackName}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com"
+            OriginAccessControlId: !GetAtt OriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+          # ALB origin - proxies API and WebSocket calls
+          - Id: AlbOrigin
+            DomainName: !Ref AlbDnsName
+            CustomOriginConfig:
+              HTTPPort: 8080
+              HTTPSPort: 443
+              OriginProtocolPolicy: http-only   # ALB is HTTP, CloudFront handles HTTPS externally
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
+          Compress: true
+        CacheBehaviors:
+          # Forward API calls to ALB
+          - PathPattern: /positions*
+            TargetOriginId: AlbOrigin
+            ViewerProtocolPolicy: https-only
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad   # CachingDisabled
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac  # AllViewerExceptHostHeader
+            AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
+          - PathPattern: /health*
+            TargetOriginId: AlbOrigin
+            ViewerProtocolPolicy: https-only
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            AllowedMethods: [GET, HEAD, OPTIONS]
+          - PathPattern: /actions*
+            TargetOriginId: AlbOrigin
+            ViewerProtocolPolicy: https-only
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
+          # WebSocket path - disable caching, forward all headers
+          - PathPattern: /live*
+            TargetOriginId: AlbOrigin
+            ViewerProtocolPolicy: https-only
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            AllowedMethods: [GET, HEAD, OPTIONS]
+        # Custom error pages - SPA routing
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponsePagePath: /index.html
+            ResponseCode: 200
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 404
+            ResponsePagePath: /index.html
+            ResponseCode: 200
+            ErrorCachingMinTTL: 0
+      Tags:
+        - Key: project
+          Value: trade-engine
+
+Outputs:
+  DashboardUrl:
+    Value: !Sub "https://${CloudFrontDistribution.DomainName}"
+  CloudFrontDistributionId:
+    Value: !Ref CloudFrontDistribution
+  S3BucketName:
+    Value: !Sub "trade-engine-dashboard-${StackName}-${AWS::AccountId}"

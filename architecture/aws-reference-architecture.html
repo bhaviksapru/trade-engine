@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Trade Engine - AWS Reference Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Amazon+Ember:wght@400;700&display=swap');
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: #ffffff;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-size: 11px;
+    color: #1a1a1a;
+  }
+
+  /* Page header */
+  .page-header {
+    background: #232F3E;
+    color: white;
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .page-header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
+  .page-header .meta { font-size: 11px; opacity: 0.65; margin-top: 3px; }
+  .aws-logo {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 700; color: #FF9900;
+    letter-spacing: 0.05em;
+  }
+
+  /* Canvas */
+  .canvas {
+    padding: 24px 32px 32px;
+    min-width: 1400px;
+    position: relative;
+  }
+
+  /* Group boxes */
+  .group {
+    position: absolute;
+    border-radius: 6px;
+  }
+  .group-label {
+    position: absolute;
+    top: -11px;
+    left: 12px;
+    background: white;
+    padding: 0 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .region-box {
+    border: 2px solid #232F3E;
+    background: #F8F8F8;
+  }
+  .region-box .group-label { color: #232F3E; }
+
+  .vpc-box {
+    border: 2px dashed #8C4FFF;
+    background: rgba(140, 79, 255, 0.03);
+  }
+  .vpc-box .group-label { color: #8C4FFF; }
+
+  .subnet-box {
+    border: 1px dashed #5A4FCF;
+    background: rgba(90, 79, 207, 0.03);
+  }
+  .subnet-box .group-label { color: #5A4FCF; }
+
+  .sf-standard-box {
+    border: 2px solid #FF9900;
+    background: rgba(255, 153, 0, 0.04);
+    border-radius: 4px;
+  }
+  .sf-standard-box .group-label { color: #FF9900; }
+
+  .sf-express-box {
+    border: 1px dashed #FF9900;
+    background: rgba(255, 153, 0, 0.06);
+    border-radius: 4px;
+  }
+  .sf-express-box .group-label { color: #cc7700; }
+
+  .sg-box {
+    border: 1px solid #AAB7B8;
+    background: rgba(170, 183, 184, 0.08);
+    border-radius: 4px;
+  }
+  .sg-box .group-label { color: #667980; }
+
+  .external-box {
+    border: 2px solid #AAB7B8;
+    background: white;
+    border-radius: 6px;
+  }
+  .external-box .group-label { color: #5f6b7c; }
+
+  /* Service nodes */
+  .svc {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    width: 72px;
+  }
+  .svc .icon-wrap {
+    width: 48px; height: 48px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px;
+    margin-bottom: 5px;
+    flex-shrink: 0;
+  }
+  .svc .icon-wrap svg { width: 32px; height: 32px; }
+  .svc .svc-name {
+    font-size: 9.5px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: #1a1a1a;
+    max-width: 72px;
+  }
+  .svc .svc-sub {
+    font-size: 8.5px;
+    color: #5f6b7c;
+    margin-top: 1px;
+    max-width: 72px;
+    line-height: 1.3;
+  }
+
+  /* AWS category background colours */
+  .cat-compute    { background: #FFF3E0; }
+  .cat-network    { background: #EDE7F6; }
+  .cat-storage    { background: #E8F5E9; }
+  .cat-database   { background: #E3F2FD; }
+  .cat-appint     { background: #FCE4EC; }
+  .cat-security   { background: #FFEBEE; }
+  .cat-mgmt       { background: #E8EAF6; }
+  .cat-ml         { background: #F3E5F5; }
+  .cat-external   { background: #F5F5F5; }
+
+  /* Arrows / connections drawn in SVG overlay */
+  #arrows {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+  }
+  .arr-solid { stroke: #5f6b7c; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+  .arr-dashed { stroke: #AAB7B8; stroke-width: 1.2; fill: none; stroke-dasharray: 5,3; marker-end: url(#arrowhead-gray); }
+  .arr-orange { stroke: #FF9900; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead-orange); }
+  .arr-blue   { stroke: #2075D5; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead-blue); }
+  .arr-purple { stroke: #8C4FFF; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead-purple); }
+  .arr-red    { stroke: #D12; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead-red); }
+
+  /* Connection labels */
+  .conn-label {
+    position: absolute;
+    font-size: 8.5px;
+    color: #5f6b7c;
+    background: white;
+    padding: 1px 4px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    white-space: nowrap;
+    line-height: 1.4;
+  }
+
+  /* Legend */
+  .legend {
+    position: absolute;
+    bottom: 20px;
+    right: 32px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 12px 16px;
+    min-width: 200px;
+  }
+  .legend h3 { font-size: 10px; font-weight: 700; margin-bottom: 8px; color: #232F3E; text-transform: uppercase; letter-spacing: 0.08em; }
+  .legend-item { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; font-size: 9px; color: #5f6b7c; }
+  .legend-line { width: 24px; height: 2px; flex-shrink: 0; }
+  .legend-box { width: 14px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* Footer */
+  .page-footer {
+    background: #F2F3F3;
+    border-top: 1px solid #ddd;
+    padding: 10px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 9px;
+    color: #5f6b7c;
+  }
+</style>
+</head>
+<body>
+
+<!-- Page Header -->
+<div class="page-header">
+  <div>
+    <div class="aws-logo">
+      AWS
+    </div>
+    <h1 style="color:white; margin-top:4px;">Trade Engine - Reference Architecture</h1>
+    <div class="meta">AWS Region: us-east-2 (Ohio) · NinjaTrader Signal Execution via Interactive Brokers CP Gateway</div>
+  </div>
+  <div style="text-align:right; color:#aaa; font-size:10px;">
+    <div style="color:#FF9900; font-weight:700; font-size:12px;">trade-engine</div>
+    <div style="margin-top:3px;">github.com/bhaviksapru/trade-engine</div>
+    <div style="margin-top:2px;">Infra: AWS SAM · IaC: CloudFormation</div>
+  </div>
+</div>
+
+<!-- Main Canvas -->
+<div class="canvas" style="height:1180px; position:relative;">
+
+  <!-- Arrow SVG overlay -->
+  <svg id="arrows" width="100%" height="100%">
+    <defs>
+      <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#5f6b7c"/>
+      </marker>
+      <marker id="arrowhead-orange" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#FF9900"/>
+      </marker>
+      <marker id="arrowhead-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#2075D5"/>
+      </marker>
+      <marker id="arrowhead-purple" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#8C4FFF"/>
+      </marker>
+      <marker id="arrowhead-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#D13212"/>
+      </marker>
+      <marker id="arrowhead-gray" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#AAB7B8"/>
+      </marker>
+    </defs>
+
+    <!-- NinjaTrader → API Gateway -->
+    <path d="M 130,73 L 210,73" class="arr-solid"/>
+    <!-- API GW → Lambda Authorizer -->
+    <path d="M 271,60 L 340,60" class="arr-orange"/>
+    <!-- API GW → Signal Lambda (down) -->
+    <path d="M 247,95 L 247,155" class="arr-orange"/>
+    <!-- Signal Lambda → Step Functions Standard -->
+    <path d="M 247,205 L 247,252" class="arr-orange"/>
+
+    <!-- Step Functions internal flow (horizontal) -->
+    <!-- Risk Check → Place Order -->
+    <path d="M 368,330 L 420,330" class="arr-orange"/>
+    <!-- Place Order → Wait Fill -->
+    <path d="M 500,330 L 552,330" class="arr-orange"/>
+    <!-- Wait Fill → Set Stop -->
+    <path d="M 632,330 L 684,330" class="arr-orange"/>
+    <!-- Set Stop → Close Position -->
+    <path d="M 764,330 L 816,330" class="arr-orange"/>
+    <!-- Close Position → Log Trade -->
+    <path d="M 896,330 L 948,330" class="arr-orange"/>
+
+    <!-- Set Stop → Start Monitoring (down to Express box) -->
+    <path d="M 724,355 L 724,415" class="arr-orange"/>
+    <!-- Express: Check Price → Evaluate → Wait loop -->
+    <path d="M 440,455 L 510,455" class="arr-orange"/>
+    <path d="M 590,455 L 650,455" class="arr-orange"/>
+    <!-- Loop back arrow -->
+    <path d="M 676,440 Q 676,400 510,400 Q 390,400 390,440" class="arr-dashed"/>
+
+    <!-- Lambda workers → Internal NLB → EC2 CP Gateway -->
+    <path d="M 440,590 L 440,660 L 540,660" class="arr-blue"/>
+    <!-- NLB → EC2 -->
+    <path d="M 580,660 L 620,660" class="arr-blue"/>
+    <!-- EC2 CP Gateway → IB -->
+    <path d="M 700,660 L 800,660" class="arr-solid"/>
+
+    <!-- DynamoDB ← Lambda workers (Lambdas write to DDB) -->
+    <path d="M 247,585 L 247,870 L 300,870" class="arr-blue"/>
+    <!-- EventBridge ← Check Price -->
+    <path d="M 510,585 L 510,870 L 450,870" class="arr-purple"/>
+    <!-- EventBridge → SQS -->
+    <path d="M 490,870 L 530,870" class="arr-purple"/>
+    <!-- SQS → ECS Fargate -->
+    <path d="M 570,855 L 570,760 L 960,760 L 960,700" class="arr-purple"/>
+
+    <!-- Cognito ← Browser -->
+    <path d="M 1210,73 L 1160,73" class="arr-solid"/>
+    <!-- CloudFront → ALB → Fargate -->
+    <path d="M 1060,73 L 1060,130 L 1000,130 L 1000,640" class="arr-purple"/>
+    <!-- ALB → Fargate -->
+    <path d="M 990,650 L 960,650" class="arr-purple"/>
+
+    <!-- CloudWatch → Tickle Lambda -->
+    <path d="M 1190,400 L 1145,400" class="arr-dashed"/>
+    <!-- CloudWatch → Portfolio Risk -->
+    <path d="M 1190,480 L 1145,480" class="arr-dashed"/>
+    <!-- CloudWatch → Dead Man -->
+    <path d="M 1190,560 L 1145,560" class="arr-dashed"/>
+
+    <!-- Secrets Manager → Lambdas -->
+    <path d="M 750,870 L 750,600" class="arr-dashed"/>
+    <!-- SNS → Phone (notification) -->
+    <path d="M 630,905 L 630,950" class="arr-dashed"/>
+
+    <!-- Log Trade → SNS -->
+    <path d="M 990,355 L 990,870 L 650,870" class="arr-blue"/>
+  </svg>
+
+  
+  <!-- EXTERNAL: NinjaTrader                                              -->
+  
+  <div class="group external-box" style="left:20px; top:30px; width:130px; height:90px;">
+    <div class="group-label">External</div>
+    <div class="svc" style="left:28px; top:12px;">
+      <div class="icon-wrap cat-external">
+        <!-- Desktop/Computer icon -->
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="6" y="8" width="36" height="24" rx="3" fill="#5f6b7c" stroke="#5f6b7c" stroke-width="1"/>
+          <rect x="9" y="11" width="30" height="18" rx="1" fill="white"/>
+          <rect x="18" y="33" width="12" height="3" fill="#5f6b7c"/>
+          <rect x="14" y="36" width="20" height="3" rx="1" fill="#5f6b7c"/>
+          <!-- screen content hint -->
+          <rect x="11" y="13" width="8" height="2" rx="1" fill="#FF9900" opacity="0.7"/>
+          <rect x="11" y="17" width="12" height="2" rx="1" fill="#5f6b7c" opacity="0.4"/>
+          <rect x="11" y="21" width="10" height="2" rx="1" fill="#5f6b7c" opacity="0.4"/>
+        </svg>
+      </div>
+      <div class="svc-name">NinjaTrader</div>
+      <div class="svc-sub">Signal Generator</div>
+    </div>
+  </div>
+
+  <!-- Connection label: HTTPS POST /signal -->
+  <div class="conn-label" style="left:136px; top:59px;">HTTPS POST<br/>X-API-Key</div>
+
+  
+  <!-- EXTERNAL: Browser                                                  -->
+  
+  <div class="group external-box" style="left:1210px; top:30px; width:130px; height:90px;">
+    <div class="group-label">External</div>
+    <div class="svc" style="left:28px; top:12px;">
+      <div class="icon-wrap cat-external">
+        <!-- Browser icon -->
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="24" cy="24" r="18" fill="#2075D5" opacity="0.15" stroke="#2075D5" stroke-width="2"/>
+          <path d="M6 24h36M24 6a18 18 0 010 36M24 6c-4 4-7 10-7 18s3 14 7 18M24 6c4 4 7 10 7 18s-3 14-7 18" stroke="#2075D5" stroke-width="1.5" fill="none"/>
+        </svg>
+      </div>
+      <div class="svc-name">Browser</div>
+      <div class="svc-sub">Dashboard UI</div>
+    </div>
+  </div>
+
+  
+  <!-- AWS REGION BOX                                                     -->
+  
+  <div class="group region-box" style="left:200px; top:20px; width:1000px; height:1100px;">
+    <div class="group-label">AWS Region - us-east-2</div>
+
+    <!-- API Gateway + Authorizer -->
+    <div class="svc" style="left:32px; top:35px;">
+      <div class="icon-wrap cat-network">
+        <!-- API Gateway icon -->
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="40" height="40" rx="8" fill="#8C4FFF" opacity="0.15"/>
+          <rect x="10" y="10" width="28" height="28" rx="4" fill="none" stroke="#8C4FFF" stroke-width="2"/>
+          <path d="M10 22h28M10 26h28" stroke="#8C4FFF" stroke-width="1.5"/>
+          <circle cx="16" cy="24" r="2" fill="#8C4FFF"/>
+          <circle cx="32" cy="24" r="2" fill="#8C4FFF"/>
+          <path d="M18 18l6 6-6 6" stroke="#8C4FFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </div>
+      <div class="svc-name">API Gateway</div>
+      <div class="svc-sub">HTTP API<br/>prod stage</div>
+    </div>
+
+    <!-- Lambda Authorizer -->
+    <div class="svc" style="left:130px; top:25px;">
+      <div class="icon-wrap cat-compute">
+        <!-- Lambda icon -->
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/>
+          <path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </div>
+      <div class="svc-name">Lambda</div>
+      <div class="svc-sub">api_authorizer<br/>Key + IP check</div>
+    </div>
+
+    <!-- Signal Lambda -->
+    <div class="svc" style="left:32px; top:120px;">
+      <div class="icon-wrap cat-compute">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/>
+          <path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </div>
+      <div class="svc-name">Lambda</div>
+      <div class="svc-sub">signal<br/>StartExecution</div>
+    </div>
+
+    <!-- Step Functions Standard box -->
+    <div class="group sf-standard-box" style="left:14px; top:215px; width:980px; height:240px;">
+      <div class="group-label">AWS Step Functions - Standard Workflow (Trade Lifecycle)</div>
+
+      <!-- Risk Check Lambda -->
+      <div class="svc" style="left:20px; top:40px;">
+        <div class="icon-wrap cat-compute">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/>
+            <path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+        </div>
+        <div class="svc-name">Lambda</div>
+        <div class="svc-sub">risk_check</div>
+      </div>
+
+      <!-- Place Order Lambda -->
+      <div class="svc" style="left:110px; top:40px;">
+        <div class="icon-wrap cat-compute">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/>
+            <path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+        </div>
+        <div class="svc-name">Lambda</div>
+        <div class="svc-sub">place_order</div>
+      </div>
+
+      <!-- Wait For Fill Lambda -->
+      <div class="svc" style="left:200px; top:40px;">
+        <div class="icon-wrap cat-compute">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/>
+            <path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+        </div>
+        <div class="svc-name">Lambda</div>
+        <div class="svc-sub">wait_for_fill</div>
+      </div>
+
+      <!-- Set Stop Lambda -->
+      <div class="svc" style="left:290px; top:40px;">
+        <div class="icon-wrap cat-compute">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/>
+            <path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+        </div>
+        <div class="svc-name">Lambda</div>
+        <div class="svc-sub">set_stop</div>
+      </div>
+
+      <!-- Express WF nested box -->
+      <div class="group sf-express-box" style="left:375px; top:20px; width:350px; height:200px;">
+        <div class="group-label">Express Workflow - Monitoring Loop (chains every 5min)</div>
+
+        <!-- Check Price Lambda -->
+        <div class="svc" style="left:20px; top:50px;">
+          <div class="icon-wrap cat-compute">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/>
+              <path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            </svg>
+          </div>
+          <div class="svc-name">Lambda</div>
+          <div class="svc-sub">check_price<br/>every 5s</div>
+        </div>
+
+        <!-- Choice state -->
+        <div class="svc" style="left:115px; top:50px;">
+          <div class="icon-wrap" style="background:#FFF3E0;">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <polygon points="24,6 42,24 24,42 6,24" fill="#FF9900" opacity="0.2" stroke="#FF9900" stroke-width="2"/>
+              <text x="24" y="29" text-anchor="middle" font-size="14" fill="#FF9900" font-weight="bold">?</text>
+            </svg>
+          </div>
+          <div class="svc-name">Choice</div>
+          <div class="svc-sub">Stop/TP/Timeout<br/>eval</div>
+        </div>
+
+        <!-- Wait state -->
+        <div class="svc" style="left:210px; top:50px;">
+          <div class="icon-wrap" style="background:#FFF3E0;">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="24" cy="24" r="16" fill="#FF9900" opacity="0.15" stroke="#FF9900" stroke-width="2"/>
+              <path d="M24 14v10l6 4" stroke="#FF9900" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="svc-name">Wait</div>
+          <div class="svc-sub">5s loop</div>
+        </div>
+
+        <!-- Exit labels -->
+        <div style="position:absolute; bottom:14px; left:12px; font-size:8px; color:#cc7700; line-height:1.8;">
+          <span style="color:#D13212;">●</span> STOP_HIT &nbsp;
+          <span style="color:#2075D5;">●</span> TP_HIT &nbsp;
+          <span style="color:#5f6b7c;">●</span> TIMEOUT / CHAIN
+        </div>
+      </div>
+
+      <!-- Close Position Lambda -->
+      <div class="svc" style="left:745px; top:40px;">
+        <div class="icon-wrap cat-compute">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/>
+            <path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+        </div>
+        <div class="svc-name">Lambda</div>
+        <div class="svc-sub">close_position</div>
+      </div>
+
+      <!-- Log Trade Lambda -->
+      <div class="svc" style="left:835px; top:40px;">
+        <div class="icon-wrap cat-compute">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/>
+            <path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+        </div>
+        <div class="svc-name">Lambda</div>
+        <div class="svc-sub">log_trade</div>
+      </div>
+
+      <!-- Arrows inside SF box (relative to sf box: left=14,top=215 + canvas padding) -->
+    </div><!-- /sf-standard-box -->
+
+    <!-- VPC Box -->
+    <div class="group vpc-box" style="left:14px; top:490px; width:800px; height:320px;">
+      <div class="group-label">VPC - 10.0.0.0/16 · 3 AZs · 3 NAT Gateways</div>
+
+      <!-- Private Subnet box -->
+      <div class="group subnet-box" style="left:14px; top:24px; width:770px; height:270px;">
+        <div class="group-label">Private Subnets - 10.0.10.0/24 (1a) · 10.0.11.0/24 (1b) · 10.0.12.0/24 (1c)</div>
+
+        <!-- sg-lambda-workers box -->
+        <div class="group sg-box" style="left:10px; top:24px; width:310px; height:220px;">
+          <div class="group-label">sg-lambda-workers</div>
+
+          <!-- Lambda worker icons in a 2x3 grid -->
+          <!-- Row 1 -->
+          <div class="svc" style="left:8px; top:28px;">
+            <div class="icon-wrap cat-compute">
+              <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/><path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+            </div>
+            <div class="svc-name">risk_check</div>
+          </div>
+          <div class="svc" style="left:88px; top:28px;">
+            <div class="icon-wrap cat-compute">
+              <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/><path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+            </div>
+            <div class="svc-name">place_order</div>
+          </div>
+          <div class="svc" style="left:168px; top:28px;">
+            <div class="icon-wrap cat-compute">
+              <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/><path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+            </div>
+            <div class="svc-name">wait_for_fill</div>
+          </div>
+          <div class="svc" style="left:248px; top:28px;">
+            <div class="icon-wrap cat-compute">
+              <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/><path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+            </div>
+            <div class="svc-name">set_stop</div>
+          </div>
+          <!-- Row 2 -->
+          <div class="svc" style="left:8px; top:128px;">
+            <div class="icon-wrap cat-compute">
+              <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/><path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+            </div>
+            <div class="svc-name">check_price</div>
+          </div>
+          <div class="svc" style="left:88px; top:128px;">
+            <div class="icon-wrap cat-compute">
+              <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/><path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+            </div>
+            <div class="svc-name">close_position</div>
+          </div>
+          <div class="svc" style="left:168px; top:128px;">
+            <div class="icon-wrap cat-compute">
+              <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/><path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+            </div>
+            <div class="svc-name">log_trade</div>
+          </div>
+          <div class="svc" style="left:248px; top:128px;">
+            <div class="icon-wrap cat-compute">
+              <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/><path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+            </div>
+            <div class="svc-name">tickle</div>
+          </div>
+        </div>
+
+        <!-- sg-nlb-cpgw + sg-cpgateway -->
+        <div class="group sg-box" style="left:340px; top:24px; width:140px; height:220px;">
+          <div class="group-label">sg-nlb-cpgw + sg-cpgateway</div>
+          <!-- Internal NLB -->
+          <div class="svc" style="left:4px; top:20px;">
+            <div class="icon-wrap cat-network">
+              <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="4" y="4" width="40" height="40" rx="8" fill="#8C4FFF" opacity="0.15"/>
+                <rect x="10" y="22" width="28" height="4" rx="2" fill="#8C4FFF" opacity="0.6"/>
+                <circle cx="14" cy="14" r="4" fill="#8C4FFF" opacity="0.6"/>
+                <circle cx="34" cy="14" r="4" fill="#8C4FFF" opacity="0.6"/>
+                <circle cx="14" cy="34" r="4" fill="#8C4FFF" opacity="0.6"/>
+                <circle cx="34" cy="34" r="4" fill="#8C4FFF" opacity="0.6"/>
+                <path d="M14 18v4M34 18v4M14 26v4M34 26v4" stroke="#8C4FFF" stroke-width="2"/>
+              </svg>
+            </div>
+            <div class="svc-name">Internal NLB</div>
+            <div class="svc-sub">TCP:5000<br/>stable DNS</div>
+          </div>
+          <!-- EC2 ASG -->
+          <div class="svc" style="left:70px; top:20px;">
+            <div class="icon-wrap cat-compute">
+              <!-- EC2 icon -->
+              <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/>
+                <rect x="10" y="10" width="28" height="28" rx="3" fill="none" stroke="#FF9900" stroke-width="2"/>
+                <rect x="14" y="14" width="20" height="14" rx="2" fill="#FF9900" opacity="0.3"/>
+                <rect x="16" y="30" width="6" height="3" fill="#FF9900" opacity="0.6"/>
+                <rect x="26" y="30" width="6" height="3" fill="#FF9900" opacity="0.6"/>
+                <circle cx="24" cy="21" r="4" fill="#FF9900" opacity="0.8"/>
+              </svg>
+            </div>
+            <div class="svc-name">EC2 ASG (0→1)</div>
+            <div class="svc-sub">IB CP Gateway<br/>ASG+NLB</div>
+          </div>
+          <div style="position:absolute; bottom:14px; left:0; right:0; text-align:center; font-size:8px; color:#5f6b7c;">NLB→:5000 (internal)<br/>ghcr.io/gnzsnz/<br/>ib-gateway</div>
+        </div>
+
+        <!-- sg-fargate + ALB -->
+        <div class="group sg-box" style="left:500px; top:24px; width:255px; height:220px;">
+          <div class="group-label">sg-fargate + sg-alb</div>
+
+          <!-- ALB -->
+          <div class="svc" style="left:14px; top:30px;">
+            <div class="icon-wrap cat-network">
+              <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="4" y="4" width="40" height="40" rx="8" fill="#8C4FFF" opacity="0.15"/>
+                <rect x="10" y="22" width="28" height="4" rx="2" fill="#8C4FFF" opacity="0.6"/>
+                <circle cx="14" cy="14" r="4" fill="#8C4FFF" opacity="0.6"/>
+                <circle cx="34" cy="14" r="4" fill="#8C4FFF" opacity="0.6"/>
+                <circle cx="14" cy="34" r="4" fill="#8C4FFF" opacity="0.6"/>
+                <circle cx="34" cy="34" r="4" fill="#8C4FFF" opacity="0.6"/>
+                <path d="M14 18v4M34 18v4M14 26v4M34 26v4" stroke="#8C4FFF" stroke-width="2"/>
+              </svg>
+            </div>
+            <div class="svc-name">ALB</div>
+            <div class="svc-sub">WebSocket<br/>always-on</div>
+          </div>
+
+          <!-- ECS Fargate -->
+          <div class="svc" style="left:110px; top:30px;">
+            <div class="icon-wrap cat-compute">
+              <!-- ECS icon -->
+              <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/>
+                <rect x="10" y="10" width="12" height="12" rx="2" fill="#FF9900" opacity="0.6"/>
+                <rect x="26" y="10" width="12" height="12" rx="2" fill="#FF9900" opacity="0.6"/>
+                <rect x="10" y="26" width="12" height="12" rx="2" fill="#FF9900" opacity="0.4"/>
+                <rect x="26" y="26" width="12" height="12" rx="2" fill="#FF9900" opacity="0.4"/>
+              </svg>
+            </div>
+            <div class="svc-name">ECS Fargate</div>
+            <div class="svc-sub">dashboard-api<br/>FastAPI 0.25vCPU</div>
+          </div>
+
+          <div style="position:absolute; bottom:14px; left:0; right:0; text-align:center; font-size:8px; color:#5f6b7c;">REST + WebSocket<br/>:8000</div>
+        </div>
+
+      </div><!-- /subnet-box -->
+    </div><!-- /vpc-box -->
+
+    <!-- CloudFront + S3 -->
+    <div class="svc" style="left:818px; top:35px;">
+      <div class="icon-wrap cat-network">
+        <!-- CloudFront icon -->
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="40" height="40" rx="8" fill="#8C4FFF" opacity="0.15"/>
+          <circle cx="24" cy="24" r="12" fill="none" stroke="#8C4FFF" stroke-width="2"/>
+          <path d="M12 24h24M24 12c-3 4-5 8-5 12s2 8 5 12M24 12c3 4 5 8 5 12s-2 8-5 12" stroke="#8C4FFF" stroke-width="1.5" fill="none"/>
+        </svg>
+      </div>
+      <div class="svc-name">CloudFront</div>
+      <div class="svc-sub">PriceClass_100<br/>HTTPS</div>
+    </div>
+
+    <div class="svc" style="left:900px; top:35px;">
+      <div class="icon-wrap cat-storage">
+        <!-- S3 icon -->
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="40" height="40" rx="8" fill="#3F8624" opacity="0.15"/>
+          <ellipse cx="24" cy="16" rx="14" ry="5" fill="#3F8624" opacity="0.7"/>
+          <path d="M10 16v16c0 2.8 6.3 5 14 5s14-2.2 14-5V16" stroke="#3F8624" stroke-width="2" fill="none"/>
+          <path d="M10 24c0 2.8 6.3 5 14 5s14-2.2 14-5" stroke="#3F8624" stroke-width="1.5" fill="none" stroke-dasharray="3,2"/>
+        </svg>
+      </div>
+      <div class="svc-name">S3</div>
+      <div class="svc-sub">dashboard-ui<br/>static files</div>
+    </div>
+
+    <!-- Cognito -->
+    <div class="svc" style="left:818px; top:120px;">
+      <div class="icon-wrap cat-security">
+        <!-- Cognito icon -->
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="40" height="40" rx="8" fill="#DD344C" opacity="0.15"/>
+          <circle cx="24" cy="18" r="6" fill="none" stroke="#DD344C" stroke-width="2"/>
+          <path d="M12 38c0-6.6 5.4-12 12-12s12 5.4 12 12" stroke="#DD344C" stroke-width="2" stroke-linecap="round" fill="none"/>
+          <path d="M32 22l3 3-6 6" stroke="#3F8624" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </div>
+      <div class="svc-name">Cognito</div>
+      <div class="svc-sub">Google IdP<br/>JWT + PKCE</div>
+    </div>
+
+    <!-- Background Schedulers (right) -->
+    <div class="group sg-box" style="left:830px; top:370px; width:155px; height:240px;">
+      <div class="group-label">Scheduled Lambdas</div>
+
+      <!-- CloudWatch Events -->
+      <div class="svc" style="left:38px; top:12px;">
+        <div class="icon-wrap cat-mgmt">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="4" width="40" height="40" rx="8" fill="#E7157B" opacity="0.15"/>
+            <circle cx="24" cy="24" r="12" fill="none" stroke="#E7157B" stroke-width="2"/>
+            <path d="M24 14v10l5 5" stroke="#E7157B" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="svc-name">CloudWatch</div>
+        <div class="svc-sub">Event Rules</div>
+      </div>
+
+      <!-- Tickle Lambda -->
+      <div class="svc" style="left:4px; top:110px;">
+        <div class="icon-wrap cat-compute">
+          <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/><path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+        </div>
+        <div class="svc-name">tickle</div>
+        <div class="svc-sub">every 55s</div>
+      </div>
+
+      <!-- Portfolio Risk Lambda -->
+      <div class="svc" style="left:86px; top:110px;">
+        <div class="icon-wrap cat-compute">
+          <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="4" width="40" height="40" rx="8" fill="#FF9900" opacity="0.15"/><path d="M14 36l7-14 3 6 4-8 6 16" stroke="#FF9900" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+        </div>
+        <div class="svc-name">portfolio_risk</div>
+        <div class="svc-sub">every 60s</div>
+      </div>
+
+      <!-- Dead Man Lambda -->
+      <div class="svc" style="left:38px; top:175px;">
+        <div class="icon-wrap cat-security">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="4" width="40" height="40" rx="8" fill="#D13212" opacity="0.15"/>
+            <path d="M14 36l7-14 3 6 4-8 6 16" stroke="#D13212" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <circle cx="36" cy="14" r="6" fill="#D13212" opacity="0.85"/>
+            <text x="36" y="18" text-anchor="middle" font-size="9" fill="white" font-weight="bold">!</text>
+          </svg>
+        </div>
+        <div class="svc-name">dead_man</div>
+        <div class="svc-sub">every 5min<br/>24/7</div>
+      </div>
+    </div>
+
+    <!-- Managed Services row -->
+    <!-- DynamoDB -->
+    <div class="svc" style="left:40px; top:840px;">
+      <div class="icon-wrap cat-database">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="40" height="40" rx="8" fill="#2075D5" opacity="0.15"/>
+          <ellipse cx="24" cy="14" rx="12" ry="4" fill="#2075D5" opacity="0.6"/>
+          <path d="M12 14v6c0 2.2 5.4 4 12 4s12-1.8 12-4v-6" stroke="#2075D5" stroke-width="1.5" fill="none"/>
+          <path d="M12 20v6c0 2.2 5.4 4 12 4s12-1.8 12-4v-6" stroke="#2075D5" stroke-width="1.5" fill="none"/>
+          <path d="M12 26v6c0 2.2 5.4 4 12 4s12-1.8 12-4v-6" stroke="#2075D5" stroke-width="1.5" fill="none"/>
+        </svg>
+      </div>
+      <div class="svc-name">DynamoDB</div>
+      <div class="svc-sub">trades · config<br/>positions</div>
+    </div>
+
+    <!-- EventBridge -->
+    <div class="svc" style="left:165px; top:840px;">
+      <div class="icon-wrap cat-appint">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="40" height="40" rx="8" fill="#E7157B" opacity="0.15"/>
+          <circle cx="12" cy="24" r="4" fill="#E7157B" opacity="0.6"/>
+          <circle cx="36" cy="12" r="4" fill="#E7157B" opacity="0.6"/>
+          <circle cx="36" cy="36" r="4" fill="#E7157B" opacity="0.6"/>
+          <path d="M16 24h6l4-12h4M16 24h6l4 12h4" stroke="#E7157B" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="svc-name">EventBridge</div>
+      <div class="svc-sub">trade-engine<br/>-events bus</div>
+    </div>
+
+    <!-- SQS -->
+    <div class="svc" style="left:285px; top:840px;">
+      <div class="icon-wrap cat-appint">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="40" height="40" rx="8" fill="#E7157B" opacity="0.15"/>
+          <rect x="8" y="18" width="32" height="12" rx="3" fill="none" stroke="#E7157B" stroke-width="2"/>
+          <circle cx="16" cy="24" r="2.5" fill="#E7157B" opacity="0.6"/>
+          <circle cx="24" cy="24" r="2.5" fill="#E7157B" opacity="0.6"/>
+          <circle cx="32" cy="24" r="2.5" fill="#E7157B" opacity="0.6"/>
+          <path d="M36 14h6M36 34h6M6 14h6M6 34h6" stroke="#E7157B" stroke-width="2" opacity="0.5"/>
+        </svg>
+      </div>
+      <div class="svc-name">SQS</div>
+      <div class="svc-sub">events-queue<br/>→ WebSocket</div>
+    </div>
+
+    <!-- SNS -->
+    <div class="svc" style="left:410px; top:840px;">
+      <div class="icon-wrap cat-appint">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="40" height="40" rx="8" fill="#E7157B" opacity="0.15"/>
+          <path d="M24 10L38 36H10L24 10z" fill="none" stroke="#E7157B" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M20 36c0 2.2 1.8 4 4 4s4-1.8 4-4" stroke="#E7157B" stroke-width="1.5" fill="none"/>
+        </svg>
+      </div>
+      <div class="svc-name">SNS</div>
+      <div class="svc-sub">SMS alerts<br/>phone</div>
+    </div>
+
+    <!-- Secrets Manager -->
+    <div class="svc" style="left:540px; top:840px;">
+      <div class="icon-wrap cat-security">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="40" height="40" rx="8" fill="#DD344C" opacity="0.15"/>
+          <rect x="14" y="20" width="20" height="16" rx="3" fill="none" stroke="#DD344C" stroke-width="2"/>
+          <path d="M18 20v-4a6 6 0 0112 0v4" stroke="#DD344C" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <circle cx="24" cy="29" r="2.5" fill="#DD344C" opacity="0.7"/>
+          <path d="M24 31.5v3" stroke="#DD344C" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="svc-name">Secrets Mgr</div>
+      <div class="svc-sub">IB creds<br/>API key</div>
+    </div>
+
+    <!-- CloudWatch Logs -->
+    <div class="svc" style="left:670px; top:840px;">
+      <div class="icon-wrap cat-mgmt">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="40" height="40" rx="8" fill="#E7157B" opacity="0.15"/>
+          <path d="M8 32l8-12 6 8 6-14 6 10 6-6" stroke="#E7157B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </div>
+      <div class="svc-name">CloudWatch</div>
+      <div class="svc-sub">Logs · Metrics<br/>30d retention</div>
+    </div>
+
+    <!-- VPC Endpoints label -->
+    <div style="position:absolute; left:14px; top:820px; font-size:8.5px; color:#8C4FFF; font-weight:700; background:rgba(140,79,255,0.08); border:1px solid rgba(140,79,255,0.2); border-radius:3px; padding:3px 6px;">
+      VPC Endpoints: dynamodb (Gateway) · states · secretsmanager · ecr.api · ecr.dkr · logs · sqs (Interface)
+    </div>
+
+  </div><!-- /region-box -->
+
+  <!-- External: Interactive Brokers -->
+  <div class="group external-box" style="left:1220px; top:610px; width:130px; height:90px;">
+    <div class="group-label">External</div>
+    <div class="svc" style="left:28px; top:12px;">
+      <div class="icon-wrap" style="background:#E8F5E9;">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="6" y="10" width="36" height="28" rx="4" fill="#3F8624" opacity="0.15" stroke="#3F8624" stroke-width="2"/>
+          <path d="M14 22h4v10h-4zM22 18h4v14h-4zM30 26h4v6h-4z" fill="#3F8624" opacity="0.7"/>
+        </svg>
+      </div>
+      <div class="svc-name">Interactive Brokers</div>
+      <div class="svc-sub">IBKR API</div>
+    </div>
+  </div>
+
+  <!-- Connection label: NLB:5000 -->
+  <div class="conn-label" style="left:840px; top:618px;">NLB:5000<br/>VPC internal</div>
+  <!-- Connection label: HTTPS to IBKR -->
+  <div class="conn-label" style="left:1110px; top:618px;">HTTPS :443<br/>via NAT GW</div>
+
+  
+  <!-- LEGEND                                                             -->
+  
+  <div class="legend" style="bottom:16px; right:16px;">
+    <h3>Legend</h3>
+    <div class="legend-item"><div class="legend-line" style="background:#FF9900;"></div> Trade flow / Lambda invocation</div>
+    <div class="legend-item"><div class="legend-line" style="background:#2075D5;"></div> DynamoDB read/write</div>
+    <div class="legend-item"><div class="legend-line" style="background:#8C4FFF;"></div> Network / VPC path</div>
+    <div class="legend-item"><div class="legend-line" style="background:#AAB7B8; border-top:1px dashed #AAB7B8; height:0;"></div> Scheduled trigger</div>
+    <div style="border-top:1px solid #eee; margin:6px 0 4px;"></div>
+    <div class="legend-item"><div class="legend-box" style="border:2px solid #232F3E; background:#F8F8F8;"></div> AWS Region</div>
+    <div class="legend-item"><div class="legend-box" style="border:2px dashed #8C4FFF;"></div> VPC</div>
+    <div class="legend-item"><div class="legend-box" style="border:1px dashed #5A4FCF;"></div> Private Subnet</div>
+    <div class="legend-item"><div class="legend-box" style="border:2px solid #FF9900;"></div> Step Functions</div>
+    <div class="legend-item"><div class="legend-box" style="border:1px solid #AAB7B8;"></div> Security Group</div>
+    <div style="border-top:1px solid #eee; margin:6px 0 4px;"></div>
+    <div style="font-size:8px; color:#5f6b7c; line-height:1.7;">
+      <span style="color:#FF9900;">■</span> Compute (Lambda, EC2 ASG, ECS)&nbsp;
+      <span style="color:#8C4FFF;">■</span> Networking&nbsp;<br/>
+      <span style="color:#3F8624;">■</span> Storage / S3&nbsp;
+      <span style="color:#2075D5;">■</span> Database&nbsp;<br/>
+      <span style="color:#E7157B;">■</span> App Integration&nbsp;
+      <span style="color:#DD344C;">■</span> Security
+    </div>
+  </div>
+
+</div><!-- /canvas -->
+
+<!-- Page Footer -->
+<div class="page-footer">
+  <div>Trade Engine · AWS Reference Architecture · SAM Deployment</div>
+  <div>~$42/month at 20 trades/day (3-AZ HA, ALB+NLB always-on) · saves ~$58/month vs NinjaTrader execution license</div>
+  <div>EC2 ASG market-hours-only (9:00am–4:30pm ET Mon–Fri) · ALB/NLB always-on · Dead Man Lambda runs 24/7</div>
+</div>
+
+</body>
+</html>
